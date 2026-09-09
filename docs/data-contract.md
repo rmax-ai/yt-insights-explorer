@@ -108,7 +108,7 @@ Contains `claims` with the same provenance fields and the normalized
 verification status. Claim types are causal, comparative, factual, opinion,
 and prediction.
 
-### `data/search.json`
+### Embedded search records
 
 Contains the bounded records embedded into the Search page. Records have
 `id`, `kind`, `title`, `text`, `tags`, `channel`, `published_date`, and a

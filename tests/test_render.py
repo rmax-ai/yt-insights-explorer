@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from yt_insights_web.load import load_corpus
@@ -34,6 +35,14 @@ def test_render_site_contains_inventory_and_video_sections() -> None:
     assert "connections" in video_html
     assert 'id="search-data"' in files["search/index.html"]
     assert "<script>" not in files["search/index.html"]
+    search_json = (
+        files["search/index.html"]
+        .split('<script type="application/json" id="search-data">')[1]
+        .split("</script>", 1)[0]
+    )
+    search_records = json.loads(search_json)
+    assert all(len(record["text"]) <= 2000 for record in search_records)
+    assert all("published_date" in record for record in search_records)
 
 
 def test_rendered_paths_and_relative_links_are_local() -> None:

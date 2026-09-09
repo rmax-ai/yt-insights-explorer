@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from yt_insights_web.build import BuildError, build_site
+from yt_insights_web.build import BuildError, _compact_html, build_site
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "corpus"
@@ -69,3 +69,17 @@ def test_two_fixture_builds_are_byte_identical(tmp_path: Path) -> None:
     build_site(FIXTURE, second)
 
     assert manifest(first) == manifest(second)
+
+
+def test_compact_html_preserves_code_and_embedded_json() -> None:
+    source = (
+        "<div>\n  alpha   beta\n</div>"
+        "<pre>  alpha\n  beta</pre>"
+        '<script type="application/json">{"text":"a  b"}</script>'
+    )
+
+    compact = _compact_html(source)
+
+    assert "<div> alpha beta </div>" in compact
+    assert "<pre>  alpha\n  beta</pre>" in compact
+    assert '{"text":"a  b"}' in compact

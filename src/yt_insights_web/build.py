@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -13,7 +14,6 @@ from .graph import build_concept_graph
 from .load import CorpusValidationError, load_corpus
 from .normalize import NormalizedCorpus, normalize_corpus
 from .render import RenderConfig, render_site
-from .search import build_search_records
 from .serialize import json_text
 from .verify import VerificationError, verify_site
 
@@ -93,7 +93,6 @@ def _data_files(corpus: NormalizedCorpus, config: RenderConfig) -> dict[str, Any
         "data/concepts.json": concept_graph,
         "data/ideas.json": ideas,
         "data/claims.json": claims,
-        "data/search.json": build_search_records(corpus.videos, corpus.concepts),
     }
     for video in corpus.videos:
         files[f"data/videos/{video['video_id']}.json"] = video
@@ -104,11 +103,35 @@ def _write_tree(root: Path, rendered: dict[str, str], data: dict[str, Any]) -> N
     for relative, content in sorted(rendered.items()):
         destination = root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.suffix == ".html":
+            content = _compact_html(content)
         destination.write_text(content.replace("\r\n", "\n"), encoding="utf-8", newline="\n")
     for relative, value in sorted(data.items()):
         destination = root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(json_text(value), encoding="utf-8", newline="\n")
+
+
+def _compact_html(content: str) -> str:
+    """Remove presentation whitespace while preserving code and JSON script text."""
+
+    protected: list[str] = []
+
+    def hold(match: re.Match[str]) -> str:
+        protected.append(match.group(0))
+        return f"__HTML_PROTECTED_{len(protected) - 1}__"
+
+    content = re.sub(
+        r"<(?:pre|script|textarea)\b.*?</(?:pre|script|textarea)>",
+        hold,
+        content,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    content = re.sub(r"\s+", " ", content)
+    content = re.sub(r">\s+<", "><", content).strip()
+    for index, value in enumerate(protected):
+        content = content.replace(f"__HTML_PROTECTED_{index}__", value)
+    return content
 
 
 def _basic_validate_output(root: Path) -> None:

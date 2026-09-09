@@ -169,9 +169,7 @@ def _idea_svg(rows: list[dict[str, Any]]) -> str:
     )
 
 
-def _concept_graph_svg(
-    graph: dict[str, Any], concept_by_id: dict[str, dict[str, Any]], url
-) -> str:
+def _concept_graph_svg(graph: dict[str, Any], concept_by_id: dict[str, dict[str, Any]], url) -> str:
     shown = set(graph["graph"]["display_node_ids"])
     display_edges = [
         edge for edge in graph["edges"] if edge["id"] in graph["graph"]["display_edge_ids"]
@@ -207,7 +205,7 @@ def _concept_graph_svg(
             f'<text class="graph-label" x="{node["x"] + radius + 3}" '
             f'y="{node["y"] + 4}">{node_label}</text></a>'
         )
-    view_box = f'0 0 {graph["graph"]["width"]} {graph["graph"]["height"]}'
+    view_box = f"0 0 {graph['graph']['width']} {graph['graph']['height']}"
     return (
         f'<svg class="concept-graph-svg" viewBox="{view_box}" role="img" '
         'aria-label="Deterministic concept connection graph">'
@@ -278,17 +276,20 @@ def _concept_adjacency(
 
 def _timeline(concept_id: str, videos: tuple[dict[str, Any], ...]) -> list[dict[str, Any]]:
     months = month_axis(list(videos))
-    return [
-        {
-            "month": month,
-            "count": sum(
-                any(tag["concept_id"] == concept_id for tag in video["tags"])
-                for video in videos
-                if video["source"]["published_month"] == month
-            ),
-        }
-        for month in months
-    ]
+    rows = []
+    for month in months:
+        count = sum(
+            any(tag["concept_id"] == concept_id for tag in video["tags"])
+            or any(
+                connection["concept_id"] == concept_id or connection["connects_to_id"] == concept_id
+                for connection in video["connections"]
+            )
+            for video in videos
+            if video["source"]["published_month"] == month
+        )
+        if count:
+            rows.append({"month": month, "count": count})
+    return rows
 
 
 def render_site(corpus: NormalizedCorpus, config: RenderConfig | None = None) -> dict[str, str]:
@@ -440,9 +441,13 @@ def render_site(corpus: NormalizedCorpus, config: RenderConfig | None = None) ->
     render_page("404.html", "404.html", "Not found", "")
 
     for concept in corpus.concepts:
+        concept_video_ids = set(concept["video_ids"])
         concept_videos = tuple(
+            video for video in corpus.videos if video["video_id"] in concept_video_ids
+        )
+        tagged_videos = tuple(
             video
-            for video in corpus.videos
+            for video in concept_videos
             if any(tag["concept_id"] == concept["id"] for tag in video["tags"])
         )
         neighbors = []
@@ -458,7 +463,7 @@ def render_site(corpus: NormalizedCorpus, config: RenderConfig | None = None) ->
                     }
                 )
         related = []
-        for video in concept_videos:
+        for video in tagged_videos:
             tagged_insights = video["core_insights"]
             if tagged_insights:
                 related.append((video, tagged_insights))
