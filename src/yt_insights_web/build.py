@@ -15,6 +15,7 @@ from .normalize import NormalizedCorpus, normalize_corpus
 from .render import RenderConfig, render_site
 from .search import build_search_records
 from .serialize import json_text
+from .verify import VerificationError, verify_site
 
 
 class BuildError(RuntimeError):
@@ -111,15 +112,10 @@ def _write_tree(root: Path, rendered: dict[str, str], data: dict[str, Any]) -> N
 
 
 def _basic_validate_output(root: Path) -> None:
-    if not (root / "index.html").is_file():
-        raise BuildError("generated tree is missing index.html")
-    if not (root / "assets" / "site.css").is_file() or not (root / "assets" / "site.js").is_file():
-        raise BuildError("generated tree is missing static assets")
-    for file in root.rglob("*"):
-        if file.is_file():
-            text = file.read_text(encoding="utf-8")
-            if "/home/" in text or "file:" in text:
-                raise BuildError(f"generated tree contains a forbidden path or URL: {file}")
+    try:
+        verify_site(root)
+    except VerificationError as exc:
+        raise BuildError(str(exc)) from exc
 
 
 def build_site(
