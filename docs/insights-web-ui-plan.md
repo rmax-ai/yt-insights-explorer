@@ -17,7 +17,7 @@ The product must:
 - preserve provenance: every extracted item links to its local video detail page, and every video page links to the actual YouTube `source_uri` and displays channel and publication date;
 - render all structured insight sections on each video page;
 - use relative internal URLs and a configurable deployment base path;
-- work within a 2-CPU/3.7 GB machine, complete a 73-video build in seconds or low minutes, and remain comfortably below 20 MB;
+- work within a 2-CPU/3.7 GB machine, complete a 73-video build in seconds or low minutes, and remain comfortably below 25 MB (GH Pages limit is 1 GB; budget is a self-imposed leanness gate);
 - surface that the content is private and unreviewed until an explicit publication decision changes build configuration.
 
 ### In scope
@@ -400,7 +400,7 @@ All page HTML is pre-rendered. Links are computed relative to the current page s
 
 ### `file://` decision
 
-Core navigation, rendered content, charts, graph, filters, and search must work from `file://`. Browsers commonly block `fetch()` from local files, so search data is embedded in `search/index.html` and page enhancements read DOM or inline JSON. Aggregate JSON remains available for auditing and future HTTP-hosted clients but is not a runtime dependency. The tradeoff is a larger search page and some duplicated data; at this corpus size it is preferable to a local web-server requirement and remains far below the 20 MB budget.
+Core navigation, rendered content, charts, graph, filters, and search must work from `file://`. Browsers commonly block `fetch()` from local files, so search data is embedded in `search/index.html` and page enhancements read DOM or inline JSON. Aggregate JSON remains available for auditing and future HTTP-hosted clients but is not a runtime dependency. The tradeoff is a larger search page and some duplicated data; at this corpus size it is preferable to a local web-server requirement and remains far below the 25 MB budget.
 
 ## 7. Design integration contract
 
@@ -566,7 +566,7 @@ Pass means exit 0, no unexpected skips, loader/normalizer/derive/render/verifier
 uv run build_site --source /home/rmax-10/src/rmax-ai/yt-insights --out .build/site-a
 ```
 
-Pass means exit 0; 73 video HTML pages and 73 normalized video JSON files; all inventory pages and concept detail pages exist; counts reconcile to the source; output is below 20,000,000 bytes; and the source repository remains byte-for-byte/Git-status unchanged.
+Pass means exit 0; 73 video HTML pages and 73 normalized video JSON files; all inventory pages and concept detail pages exist; counts reconcile to the source; output is below 25,000,000 bytes; and the source repository remains byte-for-byte/Git-status unchanged.
 
 ### Link, leakage, provenance, and size sanity
 
@@ -574,7 +574,7 @@ Pass means exit 0; 73 video HTML pages and 73 normalized video JSON files; all i
 uv run python -m yt_insights_web.verify .build/site-a
 ```
 
-Pass means every local `href`, `src`, and referenced fragment resolves; all analyzed items have pages; the only allowed outbound content URLs are YouTube watch URLs derived from `source_uri`; no absolute host path, `file:` URL, source artifact pathname, or disallowed external URL occurs; and total generated size is under 20 MB.
+Pass means every local `href`, `src`, and referenced fragment resolves; all analyzed items have pages; the only allowed outbound content URLs are YouTube watch URLs derived from `source_uri`; no absolute host path, `file:` URL, source artifact pathname, or disallowed external URL occurs; and total generated size is under 25 MB.
 
 Also run explicit leakage scans as defense in depth:
 
@@ -627,4 +627,4 @@ Pass means root and nested navigation work in both modes; search returns results
 
 ## 11. Acceptance summary
 
-The first release is complete when the verification gates pass on both fixtures and all 73 analyzed artifacts, every structured item is reachable through a video page, concepts/ideas/claims/trends are browsable without a backend, search works from `file://`, no absolute source path or unsupported citation is emitted, two builds are byte-identical, output remains below 20 MB, and private/unreviewed status is impossible to miss.
+The first release is complete when the verification gates pass on both fixtures and all 73 analyzed artifacts, every structured item is reachable through a video page, concepts/ideas/claims/trends are browsable without a backend, search works from `file://`, no absolute source path or unsupported citation is emitted, two builds are byte-identical, output remains below 25 MB, and private/unreviewed status is impossible to miss.

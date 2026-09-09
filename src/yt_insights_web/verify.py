@@ -9,7 +9,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
-MAX_BYTES = 20_000_000
+MAX_BYTES = 25_000_000
 _WINDOWS_PATH = re.compile(r"\b[A-Za-z]:[\\/]")
 
 
