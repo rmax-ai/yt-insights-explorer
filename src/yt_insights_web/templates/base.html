@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ page_title }} · {{ site_title }}</title>
+    <meta name="robots" content="{{ robots }}">
+    <link rel="stylesheet" href="{{ css_href }}">
+    <script defer src="{{ js_href }}"></script>
+  </head>
+  <body class="site-shell">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="brand-lockup">
+        <a class="brand" href="{{ url('index.html') }}">{{ site_title }}</a>
+        <span class="brand-subtitle">private corpus explorer</span>
+      </div>
+      {% include "components/nav.html" %}
+    </header>
+    {% if private_mode %}
+      {% include "components/privacy.html" %}
+    {% endif %}
+    <main id="main" class="main-content">
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="site-footer">
+      <span>{{ site_title }}</span>
+      <span>Static output · no tracking · {{ publication_label }}</span>
+    </footer>
+  </body>
+</html>

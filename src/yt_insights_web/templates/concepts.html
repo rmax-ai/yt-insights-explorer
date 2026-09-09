@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+  <header class="page-header"><p class="eyebrow">Vocabulary and adjacency</p><h1>Concepts</h1><p class="lede">Terms are grouped only by trimmed, whitespace-collapsed, case-insensitive equality. Connections are observed in extracted records, not inferred from prose.</p></header>
+  <label class="field-label" for="concept-filter">Filter concepts</label>
+  <input class="text-input" id="concept-filter" data-filter-input="concept-list" type="search" placeholder="Find a concept">
+  <section class="section-block concept-graph">
+    <div class="section-header"><h2>Connection overview</h2><span class="muted">Top {{ graph.graph.display_node_ids|length }} nodes</span></div>
+    {{ graph_svg|safe }}
+    <p class="chart-caption">The SVG is a bounded overview. The complete adjacency list follows.</p>
+  </section>
+  <section class="section-block">
+    <div class="section-header"><h2>Complete adjacency list</h2></div>
+    <div id="concept-list" class="adjacency-list">
+      {% for row in adjacency %}
+        <article class="adjacency-row" data-filter-value="{{ row.name|lower }}"><a href="{{ url(row.url) }}"><strong>{{ row.name }}</strong></a><span>{% if row.neighbors %}{% for neighbor in row.neighbors %}<a href="{{ url(neighbor.url) }}">{{ neighbor.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% else %}<span class="muted">No observed connections</span>{% endif %}</span></article>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="methodology prose"><h2>Reading the graph</h2><p>Each edge groups directional connection records by endpoint pair. Self-links remain in video detail pages but are not drawn as SVG edges. Keyboard focus and hover highlight adjacent nodes without changing the underlying links.</p></section>
+{% endblock %}

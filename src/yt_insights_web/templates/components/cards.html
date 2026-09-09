@@ -1,0 +1,84 @@
+{% macro provenance(video, label="Source video") -%}
+  <a class="source-link" href="{{ url(video.url) }}">{{ label }} <span aria-hidden="true">↗</span></a>
+{%- endmacro %}
+
+{% macro tags(tags) -%}
+  <div class="tag-list" aria-label="Concept tags">
+    {% for tag in tags %}
+      <a class="tag-pill" href="{{ url(tag.url) }}">{{ tag.name }}</a>
+    {% endfor %}
+  </div>
+{%- endmacro %}
+
+{% macro video_card(video) -%}
+  <article class="card video-card">
+    <div class="eyebrow">{{ video.source.published_date }} · {{ video.channel }}</div>
+    <h3><a href="{{ url(video.url) }}">{{ video.title }}</a></h3>
+    <div class="card-meta">
+      <span>{{ video.core_insights|length }} insights</span>
+      <a class="source-link" href="{{ video.source.uri }}">YouTube <span aria-hidden="true">↗</span></a>
+    </div>
+    {{ tags(video.tags) }}
+  </article>
+{%- endmacro %}
+
+{% macro insight_card(insight, video) -%}
+  <article class="card insight-block" id="{{ insight.id }}">
+    <header class="insight-header">
+      <span class="type-label type-{{ insight.type }}"><span class="type-glyph" aria-hidden="true">{{ glyphs[insight.type] }}</span>{{ insight.type|replace("_", " ")|title }}</span>
+      <span class="status-badge">{{ insight.novelty }} novelty</span>
+      <span class="status-badge">{{ insight.evidence_strength }} evidence</span>
+    </header>
+    <h3>{{ insight.insight }}</h3>
+    <div class="field-pair"><strong>Why it matters</strong><p>{{ insight.why_it_matters }}</p></div>
+    <div class="field-pair"><strong>Generalization</strong><p>{{ insight.generalization }}</p></div>
+    {% if insight.evidence_quotes %}
+      <div class="quote-stack">
+        {% for quote in insight.evidence_quotes %}
+          {{ quote_block(quote, video) }}
+        {% endfor %}
+      </div>
+    {% endif %}
+    <footer class="card-footer">{{ provenance(video) }}</footer>
+  </article>
+{%- endmacro %}
+
+{% macro quote_block(quote, video) -%}
+  <figure class="quote-block">
+    <blockquote>{{ quote.text }}</blockquote>
+    <figcaption>
+      {% if quote.timestamp_seconds is not none %}<span>at {{ quote.timestamp_seconds }}s</span>{% endif %}
+      <a class="source-link" href="{{ quote.source_url or video.source.uri }}">Open source video <span aria-hidden="true">↗</span></a>
+    </figcaption>
+  </figure>
+{%- endmacro %}
+
+{% macro idea_card(item, video) -%}
+  <article class="card idea-card" id="{{ item.id }}">
+    <div class="eyebrow">{{ item.source_published[:10] }} · {{ item.channel }}</div>
+    <h3>{{ item.title or item.name or item.topic or item.question }}</h3>
+    {% if item.thesis %}<p>{{ item.thesis }}</p>{% endif %}
+    {% if item.hypothesis %}<p>{{ item.hypothesis }}</p>{% endif %}
+    {% if item.research_question %}<div class="field-pair"><strong>Research question</strong><p>{{ item.research_question }}</p></div>{% endif %}
+    {% if item.why %}<div class="field-pair"><strong>Why</strong><p>{{ item.why }}</p></div>{% endif %}
+    {% if item.fits %}<span class="fit-pill">{{ item.fits }}</span>{% endif %}
+    {{ provenance(video) }}
+  </article>
+{%- endmacro %}
+
+{% macro claim_card(claim, video) -%}
+  <article class="card claim-card" id="{{ claim.id }}" data-verification="{{ claim.verification_status }}" data-claim-type="{{ claim.claim_type }}">
+    <div class="card-meta">
+      <span class="result-kind">{{ claim.claim_type }}</span>
+      {% if claim.verification_status == "needed" %}
+        <span class="status-badge status-needed">Verification needed</span>
+      {% else %}
+        <span class="status-badge">Verification not requested</span>
+      {% endif %}
+    </div>
+    <h3>{{ claim.claim }}</h3>
+    <div class="field-pair"><strong>Evidence</strong><p>{{ claim.evidence }}</p></div>
+    {% if claim.verification_question %}<div class="field-pair"><strong>Question</strong><p>{{ claim.verification_question }}</p></div>{% endif %}
+    {{ provenance(video) }}
+  </article>
+{%- endmacro %}

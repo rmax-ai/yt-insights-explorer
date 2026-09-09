@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+  <header class="page-header"><p class="eyebrow">Temporal analysis</p><h1>Trends</h1><p class="lede">Publication-month counts show corpus evolution. The trend score is a transparent rate difference, not a forecast or significance test.</p></header>
+  <section class="section-block">
+    <div class="section-header"><h2>Corpus growth</h2><span class="muted">{{ month_range }}</span></div>
+    <div class="trend-chart">{{ growth_svg|safe }}</div>
+    <table class="data-table"><caption class="visually-hidden">Monthly corpus growth</caption><thead><tr><th>Month</th><th>Published</th><th>Cumulative</th></tr></thead><tbody>{% for row in trends.corpus_growth %}<tr><td>{{ row.month }}</td><td>{{ row.published }}</td><td>{{ row.cumulative }}</td></tr>{% endfor %}</tbody></table>
+  </section>
+  <section class="section-block">
+    <div class="section-header"><h2>Rising concepts</h2><span class="chart-tooltip" title="trend score = recent rate − prior rate">How this is calculated</span></div>
+    {% if trends.tag_rankings %}<table class="data-table"><caption class="visually-hidden">Concept trend ranking</caption><thead><tr><th>Concept</th><th>Videos</th><th>Recent</th><th>Prior</th><th>Score</th><th>State</th></tr></thead><tbody>{% for item in trends.tag_rankings %}<tr><td><a href="{{ url(concept_urls[item.concept_id]) }}">{{ item.name }}</a></td><td>{{ item.video_count }}</td><td>{{ item.recent_count }} / {{ recent_video_count }}</td><td>{{ item.prior_count }} / {{ prior_video_count }}</td><td>{{ "%.3f"|format(item.trend_score) }}</td><td>{% if item.rising %}<span class="status-badge status-rising">Rising</span>{% else %}<span class="muted">Observed</span>{% endif %}</td></tr>{% endfor %}</tbody></table>{% else %}<div class="empty-state">No tagged concepts yet.</div>{% endif %}
+  </section>
+  <section class="section-block">
+    <div class="section-header"><h2>Insight types by month</h2></div>
+    <div class="trend-chart">{{ insight_svg|safe }}</div>
+    <table class="data-table"><caption class="visually-hidden">Insight type counts by month</caption><thead><tr><th>Month</th>{% for insight_type in insight_types %}<th>{{ insight_type|replace("_", " ")|title }}</th>{% endfor %}<th>Total</th></tr></thead><tbody>{% for row in trends.insight_type_monthly %}<tr><td>{{ row.month }}</td>{% for insight_type in insight_types %}<td>{{ row.counts[insight_type] }}</td>{% endfor %}<td>{{ row.total }}</td></tr>{% endfor %}</tbody></table>
+  </section>
+  <section class="section-block">
+    <div class="section-header"><h2>Idea flow</h2></div>
+    <div class="trend-chart">{{ idea_svg|safe }}</div>
+    <table class="data-table"><caption class="visually-hidden">Idea counts by month</caption><thead><tr><th>Month</th><th>Articles</th><th>Projects</th><th>Deep dives</th><th>Questions</th></tr></thead><tbody>{% for row in trends.idea_flow_monthly %}<tr><td>{{ row.month }}</td><td>{{ row.article_ideas }}</td><td>{{ row.project_ideas }}</td><td>{{ row.deep_dives }}</td><td>{{ row.open_questions }}</td></tr>{% endfor %}</tbody></table>
+  </section>
+{% endblock %}

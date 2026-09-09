@@ -1,0 +1,8 @@
+<nav class="primary-nav" aria-label="Primary navigation">
+  {% for item in nav_items %}
+    <a class="nav-link{% if current_section == item.key %} is-active{% endif %}" href="{{ url(item.path) }}">
+      <span class="nav-glyph" aria-hidden="true">{{ item.glyph }}</span>
+      <span>{{ item.label }}</span>
+    </a>
+  {% endfor %}
+</nav>

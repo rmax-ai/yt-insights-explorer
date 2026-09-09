@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "components/cards.html" import video_card, tags with context %}
+{% block content %}
+  <header class="page-header">
+    <p class="eyebrow">Corpus overview</p>
+    <h1>Ideas, claims, and patterns from {{ counts.analyzed_videos }} analyzed videos.</h1>
+    <p class="lede">A local-first index of a private YouTube-derived knowledge corpus. Browse the evidence trail before deciding what to publish.</p>
+  </header>
+  <section class="kpi-strip" aria-label="Corpus counts">
+    <div class="kpi"><strong>{{ counts.analyzed_videos }}</strong><span>videos</span></div>
+    <div class="kpi"><strong>{{ counts.concepts }}</strong><span>concepts</span></div>
+    <div class="kpi"><strong>{{ counts.core_insights }}</strong><span>core insights</span></div>
+    <div class="kpi"><strong>{{ counts.claims }}</strong><span>claims</span></div>
+    <div class="kpi"><strong>{{ counts.total_cost_usd|round(2) }}</strong><span>USD processing cost</span></div>
+  </section>
+  <div class="home-grid">
+    <section>
+      <div class="section-header"><div><p class="eyebrow">Latest</p><h2>Recently published</h2></div><a href="{{ url('videos/index.html') }}">All videos →</a></div>
+      <div class="card-grid">{% for video in latest_videos %}{{ video_card(video) }}{% endfor %}</div>
+    </section>
+    <aside class="card side-note">
+      <p class="eyebrow">Rising activity</p>
+      <h2>Concepts gaining attention</h2>
+      {% if rising_concepts %}
+        <ul class="compact-list">{% for concept in rising_concepts %}<li><a href="{{ url(concept.url) }}">{{ concept.name }}</a><span>{{ concept.recent_count }} recent</span></li>{% endfor %}</ul>
+      {% else %}<p class="muted">No concept meets the documented rising threshold yet.</p>{% endif %}
+      <a class="button button-secondary" href="{{ url('trends/index.html') }}">Inspect trends</a>
+    </aside>
+  </div>
+  <section class="section-block">
+    <div class="section-header"><div><p class="eyebrow">Growth</p><h2>Corpus by publication month</h2></div><a href="{{ url('trends/index.html') }}">Methodology →</a></div>
+    <div class="trend-chart">{{ growth_svg|safe }}</div>
+    <p class="chart-caption">Counts use source publication dates, not ingestion dates.</p>
+  </section>
+  <section class="browse-grid">
+    <a class="card browse-card" href="{{ url('concepts/index.html') }}"><span class="eyebrow">Vocabulary</span><h2>Explore concepts</h2><p>{{ counts.concepts }} terms and their observed connections.</p></a>
+    <a class="card browse-card" href="{{ url('ideas/index.html') }}"><span class="eyebrow">Prospective work</span><h2>Browse ideas</h2><p>{{ counts.article_ideas + counts.project_ideas + counts.deep_dives + counts.open_questions }} ideas with provenance.</p></a>
+    <a class="card browse-card" href="{{ url('claims/index.html') }}"><span class="eyebrow">Verification</span><h2>Review claims</h2><p>{{ counts.claims }} claims, including {{ counts.claims_needed }} that need checking.</p></a>
+  </section>
+  <section class="methodology prose">
+    <h2>Methodology note</h2>
+    <p>These pages are pre-rendered from analyzed source artifacts. Extracted material is private and unreviewed by default. Counts show what the corpus contains, not what has been independently verified.</p>
+  </section>
+{% endblock %}

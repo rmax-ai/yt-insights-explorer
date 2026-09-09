@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% from "components/cards.html" import idea_card with context %}
+{% block content %}
+  <header class="page-header"><p class="eyebrow">Prospective work</p><h1>Ideas</h1><p class="lede">Every card retains a link to the video that produced it. Filtering is an enhancement; all groups remain visible without JavaScript.</p></header>
+  <div class="filter-row" role="toolbar" aria-label="Idea filters"><button class="filter-chip is-selected" data-filter-value="all" data-filter-group="ideas">All</button>{% for fit in project_fits %}<button class="filter-chip" data-filter-value="{{ fit }}" data-filter-group="ideas">{{ fit }}</button>{% endfor %}</div>
+  {% for group in idea_groups %}
+    <section class="section-block idea-group" id="{{ group.key }}">
+        <div class="section-header"><div><p class="eyebrow">{{ group.label }}</p><h2>{{ group["items"]|length }} {{ group.label|lower }}</h2></div><a href="#{{ group.key }}">#</a></div>
+      <div class="card-grid">{% for item in group["items"] %}{{ idea_card(item, videos_by_id[item.video_id]) }}{% else %}<div class="empty-state">No {{ group.label|lower }} in this corpus.</div>{% endfor %}</div>
+    </section>
+  {% endfor %}
+{% endblock %}

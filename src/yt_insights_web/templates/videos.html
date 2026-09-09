@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% from "components/cards.html" import video_card with context %}
+{% block content %}
+  <header class="page-header"><p class="eyebrow">Chronological index</p><h1>Videos</h1><p class="lede">Every analyzed source has a local detail page with the complete structured extraction and provenance links.</p></header>
+  <div class="card-grid">{% for video in videos %}{{ video_card(video) }}{% else %}<div class="empty-state">No analyzed videos.</div>{% endfor %}</div>
+{% endblock %}
