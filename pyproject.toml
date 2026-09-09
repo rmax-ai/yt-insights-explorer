@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "yt-insights-web"
+version = "0.1.0"
+description = "Deterministic static explorer for a YouTube insights corpus"
+requires-python = ">=3.12"
+dependencies = [
+  "jinja2>=3.1",
+  "markdown-it-py>=3.0",
+  "pyyaml>=6.0",
+]
+
+[project.scripts]
+build_site = "yt_insights_web.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/yt_insights_web"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "real_corpus: requires the private YT_INSIGHTS_SOURCE checkout",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
