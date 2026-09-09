@@ -1,3 +1,7 @@
 .hermes/
 .serena/
 node_modules/
+.build/
+site/
+.venv/
+__pycache__/
