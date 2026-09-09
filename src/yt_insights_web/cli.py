@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
+
+from .build import BuildError, build_site
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -63,10 +65,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: source is missing index.json: {source}", file=sys.stderr)
         return 2
 
-    # Full loading and rendering are added in later build tasks. Keeping this
-    # skeleton side-effect small makes the initial package usable while the
-    # source contracts are implemented.
-    args.out.expanduser().mkdir(parents=True, exist_ok=True)
+    try:
+        build_site(
+            source,
+            args.out,
+            site_title=args.site_title,
+            base_path=args.base_path,
+            publication_mode=args.publication,
+            acknowledge_private_unreviewed=args.acknowledge_private_unreviewed,
+            generated_at=args.generated_at,
+        )
+    except BuildError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"built {args.out}")
     return 0
 
 

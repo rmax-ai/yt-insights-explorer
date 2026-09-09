@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-  <header class="page-header"><p class="eyebrow">Local corpus search</p><h1>Search</h1><p class="lede">Search data is embedded in this page, so the core search works from <code>file://</code> without a fetch request.</p></header>
+  <header class="page-header"><p class="eyebrow">Local corpus search</p><h1>Search</h1><p class="lede">Search data is embedded in this page, so the core search works from a local filesystem without a fetch request.</p></header>
   <form class="search-form" id="search-form" role="search"><label class="visually-hidden" for="search-input">Search the corpus</label><input class="text-input" id="search-input" name="q" type="search" value="{{ query }}" placeholder="Search titles, text, tags, or channels"><span id="search-status" class="muted" aria-live="polite"></span></form>
   <div class="filter-row" aria-label="Search kinds">{% for kind in search_kinds %}<button class="filter-chip is-selected" type="button" data-search-kind="{{ kind }}">{{ kind }}</button>{% endfor %}</div>
   <section id="search-results" class="search-results" aria-live="polite"><div class="empty-state">Enter a query to search this corpus.</div></section>
