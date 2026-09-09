@@ -68,6 +68,33 @@ Visit <http://localhost:8000/>. Nested pages use relative links, so the same
 tree can be copied to a static host. For a host prefix, build with
 `--base-path /yt-insights/`.
 
+## Publish to GitHub Pages
+
+The live site is the `gh-pages` branch of this repository, served on the
+custom domain at <https://rmax.ai/yt-insights-web/> (base path
+`/yt-insights-web/`). It is generated content; the branch is force-pushed on
+each refresh.
+
+```sh
+rm -rf .build/site-public
+uv run build_site \
+  --source "$HOME/src/rmax-ai/yt-insights" \
+  --out .build/site-public \
+  --publication public \
+  --acknowledge-private-unreviewed \
+  --base-path /yt-insights-web/
+touch .build/site-public/.nojekyll
+git -C .build/site-public init -q -b gh-pages
+git -C .build/site-public add -A
+git -C .build/site-public -c user.name="YT Insights" -c user.email="yt-insights@localhost" commit -q -m "site: refresh $(date -u +%F)"
+git -C .build/site-public push -f https://github.com/rmax-ai/yt-insights-web.git HEAD:gh-pages
+```
+
+Public mode flips the robots treatment to `index, follow` and relaxes the
+warning banner. The corpus remains unreviewed research notes: publish only
+when that is the intent, and consider the claims page a verification backlog,
+not a set of verified statements.
+
 ## Verification
 
 The normal contributor checks are:
