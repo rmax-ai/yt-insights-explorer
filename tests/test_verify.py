@@ -85,7 +85,9 @@ def test_missing_video_page_or_json_fails(built_site: Path) -> None:
 
 
 def test_oversize_tree_fails(built_site: Path) -> None:
-    (built_site / "assets" / "too-big.bin").write_bytes(b"x" * (20_000_001))
+    from yt_insights_web.verify import MAX_BYTES
 
-    with pytest.raises(VerificationError, match="20 MB"):
+    (built_site / "assets" / "too-big.bin").write_bytes(b"x" * (MAX_BYTES + 1))
+
+    with pytest.raises(VerificationError, match="over "):
         verify_site(built_site)

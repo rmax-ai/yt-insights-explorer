@@ -1,7 +1,7 @@
 # YT Insights Explorer — implementation plan
 
 Status: planning only  
-Target repository: `/home/rmax-10/src/rmax-ai/yt-insights-web`  
+Target repository: `/home/rmax-10/src/rmax-ai/yt-insights-explorer`  
 Source repository (read-only input): `/home/rmax-10/src/rmax-ai/yt-insights`
 
 ## 1. Goals and scope
@@ -549,7 +549,7 @@ Tests: commands below pass; README commands match the actual CLI.
 
 ## 9. Verification gates
 
-Run from `/home/rmax-10/src/rmax-ai/yt-insights-web`.
+Run from `/home/rmax-10/src/rmax-ai/yt-insights-explorer`.
 
 ### Unit and fixture integration tests
 
