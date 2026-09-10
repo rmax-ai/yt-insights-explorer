@@ -84,10 +84,10 @@ def test_missing_video_page_or_json_fails(built_site: Path) -> None:
         verify_site(built_site)
 
 
-def test_oversize_tree_fails(built_site: Path) -> None:
-    from yt_insights_web.verify import MAX_BYTES
+def test_oversize_tree_fails(built_site: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from yt_insights_web import verify as verify_module
 
-    (built_site / "assets" / "too-big.bin").write_bytes(b"x" * (MAX_BYTES + 1))
+    monkeypatch.setattr(verify_module, "MAX_BYTES", 1_024)
 
     with pytest.raises(VerificationError, match="over "):
         verify_site(built_site)

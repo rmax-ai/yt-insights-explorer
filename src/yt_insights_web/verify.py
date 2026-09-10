@@ -9,7 +9,9 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
-MAX_BYTES = 25_000_000
+# Self-imposed sanity cap; GitHub Pages allows up to 1 GB per repository.
+# Raised from 25 MB on 2026-09-10 as the corpus outgrew the old budget.
+MAX_BYTES = 100_000_000
 _WINDOWS_PATH = re.compile(r"\b[A-Za-z]:[\\/]")
 
 
@@ -165,7 +167,9 @@ def verify_site(root: str | Path) -> VerificationReport:
         raise VerificationError(f"generated site directory does not exist: {root}")
     total_bytes = _all_bytes(root)
     if total_bytes > MAX_BYTES:
-        raise VerificationError(f"generated tree is over 20 MB: {total_bytes} bytes")
+        raise VerificationError(
+            f"generated tree is over {MAX_BYTES // 1_000_000} MB: {total_bytes} bytes"
+        )
     base_path = _load_site_config(root)
     html_paths = sorted(root.rglob("*.html"))
     collectors: dict[Path, _HTMLCollector] = {}
