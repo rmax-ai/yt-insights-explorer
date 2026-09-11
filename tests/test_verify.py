@@ -36,6 +36,37 @@ def test_broken_page_link_fails(built_site: Path) -> None:
         verify_site(built_site)
 
 
+def test_internal_link_escape_fails(built_site: Path) -> None:
+    page = built_site / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8") + '<a href="../outside.html">bad</a>',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(VerificationError, match="internal link escapes generated tree"):
+        verify_site(built_site)
+
+
+def test_directory_target_maps_to_index(built_site: Path) -> None:
+    page = built_site / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8") + '<a href="trends/">trends</a>',
+        encoding="utf-8",
+    )
+
+    verify_site(built_site)
+
+
+def test_existing_fragment_passes(built_site: Path) -> None:
+    page = built_site / "index.html"
+    page.write_text(
+        page.read_text(encoding="utf-8") + '<a href="trends/index.html#main">trends</a>',
+        encoding="utf-8",
+    )
+
+    verify_site(built_site)
+
+
 def test_missing_fragment_fails(built_site: Path) -> None:
     page = built_site / "index.html"
     page.write_text(

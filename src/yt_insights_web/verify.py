@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import posixpath
 import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
@@ -45,8 +46,37 @@ class _HTMLCollector(HTMLParser):
         self.handle_starttag(tag, attrs)
 
 
-def _all_bytes(root: Path) -> int:
-    return sum(path.stat().st_size for path in root.rglob("*") if path.is_file())
+def _index_tree(
+    root: Path,
+) -> tuple[int, set[str], set[str], list[Path], list[Path]]:
+    """Walk the generated tree once and collect paths needed by validation."""
+
+    total_bytes = 0
+    file_paths: set[str] = set()
+    directory_paths: set[str] = {""}
+    html_paths: list[Path] = []
+    leak_paths: list[Path] = []
+    # Generated trees contain no symlinks, so Path.walk's directory/file split
+    # is sufficient without resolving or stat-ing every path for classification.
+    for directory, dirnames, filenames in root.walk():
+        directory_relative = directory.relative_to(root).as_posix()
+        if directory_relative == ".":
+            directory_relative = ""
+        directory_paths.add(directory_relative)
+        directory_paths.update(
+            posixpath.join(directory_relative, dirname) if directory_relative else dirname
+            for dirname in dirnames
+        )
+        for filename in filenames:
+            path = directory / filename
+            relative = path.relative_to(root).as_posix()
+            file_paths.add(relative)
+            total_bytes += path.stat().st_size
+            if path.suffix == ".html":
+                html_paths.append(path)
+            if path.suffix.lower() != ".html":
+                leak_paths.append(path)
+    return total_bytes, file_paths, directory_paths, html_paths, leak_paths
 
 
 def _filesystem_leak(text: str) -> bool:
@@ -67,26 +97,32 @@ def _load_site_config(root: Path) -> str:
     return str(base_path).rstrip("/") + "/"
 
 
-def _local_target(root: Path, page: Path, raw_path: str, base_path: str) -> Path:
+def _local_target(
+    root: Path,
+    page_relative: str,
+    raw_path: str,
+    base_path: str,
+    directory_paths: set[str],
+) -> tuple[Path, str]:
     path = unquote(raw_path)
     if path.startswith("/"):
         if base_path != "./" and path.startswith(base_path):
             path = path[len(base_path) :]
         else:
             path = path.lstrip("/")
-        target = root / path
+        relative = posixpath.normpath(path)
     else:
-        target = page.parent / path
-    try:
-        target = target.resolve()
-        target.relative_to(root.resolve())
-    except ValueError as exc:
+        page_parent = posixpath.dirname(page_relative)
+        relative = posixpath.normpath(posixpath.join(page_parent, path))
+    if relative == ".." or relative.startswith("../"):
         raise VerificationError(
-            f"internal link escapes generated tree: {page}: {raw_path}"
-        ) from exc
-    if target.is_dir():
-        target = target / "index.html"
-    return target
+            f"internal link escapes generated tree: {root / page_relative}: {raw_path}"
+        )
+    if relative == ".":
+        relative = ""
+    if relative in directory_paths:
+        relative = f"{relative}/index.html" if relative else "index.html"
+    return root / relative, relative
 
 
 def _check_reference(
@@ -95,8 +131,11 @@ def _check_reference(
     attribute: str,
     value: str,
     page_collectors: dict[Path, _HTMLCollector],
+    page_relative: str,
     base_path: str,
     allowed_video_ids: set[str],
+    file_paths: set[str],
+    directory_paths: set[str],
 ) -> None:
     parsed = urlsplit(value)
     if parsed.scheme or parsed.netloc:
@@ -112,8 +151,18 @@ def _check_reference(
     if value.startswith("//") or value.startswith("javascript:") or value.startswith("data:"):
         raise VerificationError(f"forbidden URL in {page}: {value}")
     raw_path = parsed.path
-    target = page if not raw_path else _local_target(root, page, raw_path, base_path)
-    if not target.is_file():
+    if not raw_path:
+        target = page
+        target_relative = page_relative
+    else:
+        target, target_relative = _local_target(
+            root,
+            page_relative,
+            raw_path,
+            base_path,
+            directory_paths,
+        )
+    if target_relative not in file_paths:
         raise VerificationError(f"missing local target in {page}: {value}")
     if parsed.fragment:
         if target.suffix.lower() != ".html":
@@ -165,14 +214,15 @@ def verify_site(root: str | Path) -> VerificationReport:
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise VerificationError(f"generated site directory does not exist: {root}")
-    total_bytes = _all_bytes(root)
+    total_bytes, file_paths, directory_paths, html_paths, leak_paths = _index_tree(root)
     if total_bytes > MAX_BYTES:
         raise VerificationError(
             f"generated tree is over {MAX_BYTES // 1_000_000} MB: {total_bytes} bytes"
         )
     base_path = _load_site_config(root)
-    html_paths = sorted(root.rglob("*.html"))
+    html_paths.sort()
     collectors: dict[Path, _HTMLCollector] = {}
+    page_relatives: dict[Path, str] = {}
     for page in html_paths:
         try:
             text = page.read_text(encoding="utf-8")
@@ -187,9 +237,8 @@ def verify_site(root: str | Path) -> VerificationReport:
         except Exception as exc:
             raise VerificationError(f"invalid HTML in {page}: {exc}") from exc
         collectors[page] = collector
-    for path in root.rglob("*"):
-        if not path.is_file() or path.suffix.lower() == ".html":
-            continue
+        page_relatives[page] = page.relative_to(root).as_posix()
+    for path in leak_paths:
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
@@ -205,8 +254,11 @@ def verify_site(root: str | Path) -> VerificationReport:
                 attribute,
                 value,
                 collectors,
+                page_relatives[page],
                 base_path,
                 allowed_video_ids,
+                file_paths,
+                directory_paths,
             )
     return VerificationReport(len(html_paths), video_count, total_bytes)
 
