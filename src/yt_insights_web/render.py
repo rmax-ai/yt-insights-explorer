@@ -274,19 +274,33 @@ def _concept_adjacency(
     return rows
 
 
-def _timeline(concept_id: str, videos: tuple[dict[str, Any], ...]) -> list[dict[str, Any]]:
-    months = month_axis(list(videos))
+def _timeline_histogram(
+    videos: tuple[dict[str, Any], ...],
+) -> dict[str, dict[str, int]]:
+    histogram: dict[str, dict[str, int]] = {}
+    for video in videos:
+        referenced_concepts = {tag["concept_id"] for tag in video["tags"]}
+        referenced_concepts.update(
+            endpoint
+            for connection in video["connections"]
+            for endpoint in (connection["concept_id"], connection["connects_to_id"])
+        )
+        month = video["source"]["published_month"]
+        for concept_id in referenced_concepts:
+            month_counts = histogram.setdefault(concept_id, {})
+            month_counts[month] = month_counts.get(month, 0) + 1
+    return histogram
+
+
+def _timeline(
+    concept_id: str,
+    months: list[str],
+    histogram: dict[str, dict[str, int]],
+) -> list[dict[str, Any]]:
+    counts = histogram.get(concept_id, {})
     rows = []
     for month in months:
-        count = sum(
-            any(tag["concept_id"] == concept_id for tag in video["tags"])
-            or any(
-                connection["concept_id"] == concept_id or connection["connects_to_id"] == concept_id
-                for connection in video["connections"]
-            )
-            for video in videos
-            if video["source"]["published_month"] == month
-        )
+        count = counts.get(month, 0)
         if count:
             rows.append({"month": month, "count": count})
     return rows
@@ -299,6 +313,8 @@ def render_site(corpus: NormalizedCorpus, config: RenderConfig | None = None) ->
     base_path = normalize_base_path(config.base_path)
     environment = _environment()
     trends = derive_trends(corpus.videos)
+    timeline_months = month_axis(list(corpus.videos))
+    timeline_histogram = _timeline_histogram(corpus.videos)
     ideas = derive_ideas(corpus.videos)
     claims = derive_claims(corpus.videos)
     graph = build_concept_graph(corpus.concepts, corpus.videos)
@@ -467,7 +483,7 @@ def render_site(corpus: NormalizedCorpus, config: RenderConfig | None = None) ->
             tagged_insights = video["core_insights"]
             if tagged_insights:
                 related.append((video, tagged_insights))
-        timeline = _timeline(concept["id"], corpus.videos)
+        timeline = _timeline(concept["id"], timeline_months, timeline_histogram)
         render_page(
             "concept_detail.html",
             f"concepts/{concept['slug']}/index.html",

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from yt_insights_web import render as render_module
+from yt_insights_web.derive import month_axis
 from yt_insights_web.load import load_corpus
 from yt_insights_web.normalize import normalize_corpus
 from yt_insights_web.render import RenderConfig, render_site
@@ -14,6 +16,36 @@ FIXTURE = ROOT / "tests" / "fixtures" / "corpus"
 def rendered_fixture(**kwargs: str) -> dict[str, str]:
     normalized = normalize_corpus(load_corpus(FIXTURE))
     return render_site(normalized, RenderConfig(**kwargs))
+
+
+def _legacy_timeline(concept_id: str, videos: tuple[dict, ...]) -> list[dict]:
+    months = month_axis(list(videos))
+    rows = []
+    for month in months:
+        count = sum(
+            any(tag["concept_id"] == concept_id for tag in video["tags"])
+            or any(
+                connection["concept_id"] == concept_id
+                or connection["connects_to_id"] == concept_id
+                for connection in video["connections"]
+            )
+            for video in videos
+            if video["source"]["published_month"] == month
+        )
+        if count:
+            rows.append({"month": month, "count": count})
+    return rows
+
+
+def test_fixture_timelines_match_distinct_video_reference_semantics() -> None:
+    normalized = normalize_corpus(load_corpus(FIXTURE))
+    months = month_axis(list(normalized.videos))
+    histogram = render_module._timeline_histogram(normalized.videos)
+
+    for concept in normalized.concepts:
+        assert render_module._timeline(concept["id"], months, histogram) == _legacy_timeline(
+            concept["id"], normalized.videos
+        )
 
 
 def test_render_site_contains_inventory_and_video_sections() -> None:
