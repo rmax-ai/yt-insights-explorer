@@ -1,0 +1,93 @@
+{
+  "core_insights": [
+    {
+      "insight": "Repeated legacy evidence remains an occurrence-level fact.",
+      "type": "mental_model",
+      "why_it_matters": "A compatibility reader must preserve repeated evidence instead of silently deduplicating it.",
+      "generalization": "Immutable source records should retain every evidence occurrence in its original order.",
+      "evidence_quotes": [
+        "重复证据 é 🧭",
+        "重复证据 é 🧭"
+      ],
+      "evidence_strength": "moderate",
+      "novelty": "high"
+    },
+    {
+      "insight": "Untimed evidence remains explicitly unavailable for timestamp recovery.",
+      "type": "practice",
+      "why_it_matters": "V1 inline evidence does not contain structured timing metadata.",
+      "generalization": "Missing evidence provenance should remain visible rather than being fabricated.",
+      "evidence_quotes": [
+        "A plain V1 evidence string has no timestamp."
+      ],
+      "evidence_strength": "weak",
+      "novelty": "low"
+    }
+  ],
+  "deep_dives": [
+    {
+      "topic": "Ambiguous evidence matching",
+      "research_question": "When should a legacy evidence string be considered recoverable?",
+      "why": "Only unique exact matches can safely establish a timestamp.",
+      "trigger_insight": "Repeated evidence remains ambiguous.",
+      "evidence_quotes": [],
+      "priority": "low"
+    }
+  ],
+  "article_ideas": [],
+  "project_ideas": [
+    {
+      "name": "Unicode-safe corpus reader",
+      "hypothesis": "A canonical UTF-8 path keeps multilingual evidence intact across normalization and rendering.",
+      "poc": "Build a tiny corpus containing CJK text, a combining mark, and an emoji.",
+      "measurement": "Compare normalized and rendered text with the source samples.",
+      "based_on": "V1 edge-case coverage",
+      "fits": "new"
+    }
+  ],
+  "architectural_implications": [
+    {
+      "observation": "Compatibility boundaries should preserve source distinctions.",
+      "before": "A reader might collapse repeated strings into one evidence item.",
+      "after": "The normalized contract carries every occurrence and its unavailable provenance.",
+      "consequence": "Later migrations can add recovery without rewriting the V1 baseline."
+    }
+  ],
+  "tradeoffs_and_failure_modes": [
+    {
+      "topic": "Exact recovery versus conservative nulls",
+      "benefit": "Conservative handling avoids inventing an evidence timestamp.",
+      "cost_or_risk": "Some useful timing information remains unavailable until a safe match exists.",
+      "evidence_quote": "Untimed legacy evidence must not be presented as timestamped."
+    }
+  ],
+  "open_questions": [
+    {
+      "question": "Which later migration rule can safely recover a unique exact evidence match?",
+      "why_unresolved": "The V1 artifact stores inline strings without persistent evidence identifiers.",
+      "research_direction": "Compare exact summary quote matches while preserving ambiguity as unavailable."
+    }
+  ],
+  "key_claims": [
+    {
+      "claim": "A V1 baseline must preserve unavailable verification context.",
+      "claim_type": "factual",
+      "evidence": "The fixture intentionally leaves the verification question unavailable.",
+      "verification_needed": false,
+      "verification_question": null
+    }
+  ],
+  "connections": [
+    {
+      "concept": "多言語システム",
+      "connects_to": "🧭 exploration",
+      "relationship": "Unicode-safe serialization connects multilingual evidence to deterministic exploration."
+    }
+  ],
+  "tags": [
+    "v1-edge",
+    "多言語",
+    "é",
+    "🧭"
+  ]
+}
