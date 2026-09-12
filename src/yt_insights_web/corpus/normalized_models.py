@@ -180,6 +180,37 @@ class RawLabel:
         return self.label
 
 
+@dataclass(frozen=True, slots=True)
+class EvidenceOccurrence:
+    """The source slot occupied by one evidence value."""
+
+    section: str
+    item_index: int
+    quote_index: int
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "section", _text(self.section, "evidence_occurrence.section"))
+        for name in ("item_index", "quote_index"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise _error(
+                    f"evidence_occurrence.{name}",
+                    "must be a non-negative integer",
+                )
+
+    @property
+    def source_index(self) -> int:
+        """Return the containing item's legacy source index."""
+
+        return self.item_index
+
+    @property
+    def item_position(self) -> int:
+        """Compatibility alias for the containing item's position."""
+
+        return self.item_index
+
+
 def _is_version_prefixed(value: str) -> bool:
     prefix, separator, body = value.partition(":")
     return bool(separator and prefix and body)
@@ -254,6 +285,9 @@ class Evidence:
     timestamp_seconds: float | None = None
     source_url: str | None = None
     resolution_method: str | None = None
+    content_id: str | None = None
+    occurrence: EvidenceOccurrence | None = None
+    timestamp_method: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "text", _text(self.text, "evidence.text"))
@@ -264,6 +298,16 @@ class Evidence:
         timestamp = _optional_number(self.timestamp_seconds, "evidence.timestamp_seconds")
         source_url = _optional_text(self.source_url, "evidence.source_url")
         method = _optional_text(self.resolution_method, "evidence.resolution_method")
+        timestamp_method = _optional_text(self.timestamp_method, "evidence.timestamp_method")
+        if method is not None and timestamp_method is not None and method != timestamp_method:
+            raise _error(
+                "evidence.timestamp_method",
+                "must agree with resolution_method when both are provided",
+            )
+        method = timestamp_method or method
+        content_id = _optional_text(self.content_id, "evidence.content_id")
+        if self.occurrence is not None and not isinstance(self.occurrence, EvidenceOccurrence):
+            raise _error("evidence.occurrence", "must be an EvidenceOccurrence or null")
 
         if availability is EvidenceAvailability.UNAVAILABLE:
             if timestamp is not None or source_url is not None or method is not None:
@@ -296,6 +340,38 @@ class Evidence:
         object.__setattr__(self, "timestamp_seconds", timestamp)
         object.__setattr__(self, "source_url", source_url)
         object.__setattr__(self, "resolution_method", method)
+        object.__setattr__(self, "timestamp_method", method)
+        object.__setattr__(self, "content_id", content_id)
+
+    @property
+    def evidence_id(self) -> str | None:
+        """Return the exact-text content identity when one was assigned."""
+
+        return self.content_id
+
+    @property
+    def content_identity(self) -> str | None:
+        """Compatibility alias for the exact-text content identity."""
+
+        return self.content_id
+
+    @property
+    def id(self) -> str | None:
+        """Compatibility alias for the evidence content identity."""
+
+        return self.content_id
+
+    @property
+    def occurrence_ref(self) -> EvidenceOccurrence | None:
+        """Return the source occurrence reference."""
+
+        return self.occurrence
+
+    @property
+    def occurrence_reference(self) -> EvidenceOccurrence | None:
+        """Compatibility alias for the source occurrence reference."""
+
+        return self.occurrence
 
 
 NormalizedEvidence = Evidence
@@ -563,6 +639,7 @@ class NormalizedKeyClaim(NormalizedItem):
     evidence: Evidence
     verification_requested: bool
     verification_question: str | None
+    claim_fingerprint: Fingerprint | str | None = None
 
     def __post_init__(self) -> None:
         NormalizedItem.__post_init__(self)
@@ -577,10 +654,31 @@ class NormalizedKeyClaim(NormalizedItem):
             "verification_question",
             _optional_text(self.verification_question, "key_claim.verification_question"),
         )
+        fingerprint = self.claim_fingerprint
+        if isinstance(fingerprint, str):
+            fingerprint = Fingerprint(fingerprint, FingerprintKind.CLAIM)
+        if fingerprint is not None:
+            if not isinstance(fingerprint, Fingerprint):
+                raise _error(
+                    "key_claim.claim_fingerprint",
+                    "must be a Fingerprint, version-prefixed string, or null",
+                )
+            if fingerprint.kind is not FingerprintKind.CLAIM:
+                raise _error(
+                    "key_claim.claim_fingerprint",
+                    "must use the claim fingerprint kind",
+                )
+        object.__setattr__(self, "claim_fingerprint", fingerprint)
 
     @property
     def verification_needed(self) -> bool:
         return self.verification_requested
+
+    @property
+    def claim_fingerprint_value(self) -> str | None:
+        """Return the lexical claim fingerprint as text."""
+
+        return self.claim_fingerprint.value if self.claim_fingerprint is not None else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -716,6 +814,7 @@ __all__ = [
     "AvailabilityState",
     "Evidence",
     "EvidenceAvailability",
+    "EvidenceOccurrence",
     "EvidenceResolution",
     "EvidenceStatus",
     "Fingerprint",
