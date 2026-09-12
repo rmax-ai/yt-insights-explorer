@@ -1,0 +1,189 @@
+{
+  "schema_version": 2,
+  "artifact_kind": "video-summary",
+  "video_id": "v2-contract-001",
+  "evidence": [
+    {
+      "id": "evidence-v1:v2-contract-001:source-quote-a",
+      "text": "A system's behavior emerges from the relationships among its parts.",
+      "timestamp_seconds": 12.5,
+      "source_url": "https://www.youtube.com/watch?v=v2-contract-001",
+      "provenance": {
+        "origin": "summary_quote",
+        "timestamp_method": "extracted-by-model"
+      }
+    },
+    {
+      "id": "evidence-v1:v2-contract-001:source-quote-b",
+      "text": "The missing timestamp remains unavailable rather than guessed.",
+      "timestamp_seconds": null,
+      "source_url": null,
+      "provenance": {
+        "origin": "summary_quote",
+        "timestamp_method": "none"
+      }
+    },
+    {
+      "id": "evidence-v1:v2-contract-001:source-quote-c",
+      "text": "Exact matching can recover a timestamp without changing the source text.",
+      "timestamp_seconds": 37,
+      "source_url": "https://www.youtube.com/watch?v=v2-contract-001&t=37s",
+      "provenance": {
+        "origin": "summary_quote",
+        "timestamp_method": "recovered-exact-match"
+      }
+    }
+  ],
+  "overview": {
+    "title": "Systems and durable decisions",
+    "speaker": "Synthetic Speaker",
+    "channel": "Synthetic Channel",
+    "main_topic": "How systems produce durable outcomes",
+    "executive_summary": "The summary distinguishes local parts from the relationships that produce system-level behavior.",
+    "purpose": "Provide a compact, lossless source summary for contract testing."
+  },
+  "topic_map": [
+    {
+      "id": "item-v1:v2-contract-001:topic-map-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:source-quote-a"
+      ],
+      "topic": "Emergent behavior",
+      "timestamp_range": "00:00-01:00",
+      "explanation": "System behavior depends on interactions, not only on isolated components.",
+      "key_claims": [
+        {
+          "id": "item-v1:v2-contract-001:topic-map-1:key-claim-1",
+          "value": "Relationships can dominate component quality."
+        }
+      ],
+      "examples": [
+        {
+          "id": "item-v1:v2-contract-001:topic-map-1:example-1",
+          "value": "A reliable component can still fail inside a fragile workflow."
+        }
+      ],
+      "terminology": [
+        {
+          "id": "item-v1:v2-contract-001:topic-map-1:term-1",
+          "value": "emergence"
+        }
+      ],
+      "why_it_matters": "It changes where evaluation and intervention should happen."
+    }
+  ],
+  "key_points": [
+    {
+      "id": "item-v1:v2-contract-001:key-point-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:source-quote-a",
+        "evidence-v1:v2-contract-001:source-quote-c"
+      ],
+      "point": "Evaluate the whole system.",
+      "explanation": "Local tests do not reveal every interaction failure.",
+      "evidence": "The source emphasizes relationships among parts.",
+      "practical_implication": "Add scenario-level tests before optimizing isolated components."
+    }
+  ],
+  "frameworks": [
+    {
+      "id": "item-v1:v2-contract-001:framework-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:source-quote-a"
+      ],
+      "name": "Relationship-first evaluation",
+      "how_it_works": "Measure outcomes at the level where interactions produce behavior.",
+      "components": [
+        {
+          "id": "item-v1:v2-contract-001:framework-1:component-1",
+          "value": "Define system boundaries"
+        },
+        {
+          "id": "item-v1:v2-contract-001:framework-1:component-2",
+          "value": "Measure interaction outcomes"
+        }
+      ],
+      "when_to_use": "Use it when component metrics hide coordination failures."
+    }
+  ],
+  "examples": [
+    {
+      "id": "item-v1:v2-contract-001:example-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:source-quote-b"
+      ],
+      "what_happened": "A workflow passed isolated checks but failed in combination.",
+      "illustrates": "Interactions can create behavior absent from individual parts.",
+      "lesson": "Preserve uncertainty and test the assembled system."
+    }
+  ],
+  "takeaways": {
+    "immediate": [
+      {
+        "id": "item-v1:v2-contract-001:takeaway-immediate-1",
+        "value": "Map the relationships before choosing an intervention."
+      }
+    ],
+    "strategic": [
+      {
+        "id": "item-v1:v2-contract-001:takeaway-strategic-1",
+        "value": "Treat system-level outcomes as first-class evidence."
+      }
+    ],
+    "questions_to_investigate": [
+      {
+        "id": "item-v1:v2-contract-001:takeaway-question-1",
+        "value": "Which interaction should be measured first?"
+      }
+    ]
+  },
+  "claims_to_verify": [
+    {
+      "id": "item-v1:v2-contract-001:summary-claim-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:source-quote-c"
+      ],
+      "claim": "Relationship-level tests find failures that component tests can miss.",
+      "claim_type": "empirical"
+    }
+  ],
+  "quotes": [
+    {
+      "id": "item-v1:v2-contract-001:quote-primary",
+      "text": "A system's behavior emerges from the relationships among its parts.",
+      "timestamp_seconds": 12.5,
+      "timestamp_provenance": "extracted-by-model"
+    },
+    {
+      "id": "item-v1:v2-contract-001:quote-primary",
+      "text": "The missing timestamp remains unavailable rather than guessed.",
+      "timestamp_seconds": null,
+      "timestamp_provenance": "none"
+    },
+    {
+      "id": "item-v1:v2-contract-001:quote-recovered",
+      "text": "Exact matching can recover a timestamp without changing the source text.",
+      "timestamp_seconds": 37,
+      "timestamp_provenance": "recovered-exact-match"
+    }
+  ],
+  "compressed": {
+    "bullets": [
+      {
+        "id": "item-v1:v2-contract-001:compressed-bullet-1",
+        "value": "Relationships create system-level behavior."
+      }
+    ],
+    "keywords": [
+      {
+        "id": "item-v1:v2-contract-001:compressed-keyword-1",
+        "value": "systems"
+      },
+      {
+        "id": "item-v1:v2-contract-001:compressed-keyword-2",
+        "value": "evaluation"
+      }
+    ],
+    "core_insight": "The level of evaluation should match the level at which behavior emerges."
+  }
+}

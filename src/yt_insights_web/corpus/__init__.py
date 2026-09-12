@@ -1,5 +1,12 @@
 """Typed source and normalized corpus contracts."""
 
+from .adapters.v2 import (
+    V2SourceRecord,
+    V2ValidationError,
+    adapt_v2,
+    validate_v2_insights,
+    validate_v2_summary,
+)
 from .compiler import (
     OVERLAY_APPLICATION_ORDER,
     OVERLAY_ORDER,
@@ -191,7 +198,6 @@ from .source_models import (
     SourceVersion,
     TradeoffAndFailureMode,
     V1SourceRecord,
-    V2SourceRecord,
 )
 
 __all__ = [
@@ -237,6 +243,7 @@ __all__ = [
     "compile_corpus",
     "compile_source_records",
     "compile_v1",
+    "adapt_v2",
     "evidence_content_id",
     "evidence_id",
     "evidence_from_quote",
@@ -371,6 +378,9 @@ __all__ = [
     "TradeoffAndFailureMode",
     "V1SourceRecord",
     "V2SourceRecord",
+    "V2ValidationError",
+    "validate_v2_insights",
+    "validate_v2_summary",
     "unique_exact_summary_quote",
     "validate_claim_ledger",
     "youtube_source_url",

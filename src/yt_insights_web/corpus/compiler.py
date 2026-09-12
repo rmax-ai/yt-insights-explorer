@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .adapters.v1 import adapt_v1
+from .adapters.v2 import V2SourceRecord, adapt_v2
 from .ledgers import ClaimLedger, ClaimResolution
 from .normalized_models import (
     LabelOrigin,
@@ -21,7 +22,6 @@ from .normalized_models import (
     NormalizedVideo,
     Provenance,
     RawLabel,
-    SourceVersion,
 )
 from .registries import (
     ProjectResolution,
@@ -33,6 +33,7 @@ from .registries import (
     resolve_topic,
 )
 from .source_models import RawVideo, V1SourceRecord
+from .source_models import SourceVersion as SourceModelVersion
 
 OVERLAY_APPLICATION_ORDER = ("concepts/topics", "projects", "claim reviews")
 OVERLAY_ORDER = OVERLAY_APPLICATION_ORDER
@@ -143,14 +144,24 @@ ResolvedCorpusState = OverlayState
 
 
 def compile_source_records(
-    records: Iterable[V1SourceRecord | RawVideo],
+    records: Iterable[V1SourceRecord | V2SourceRecord | RawVideo],
 ) -> tuple[NormalizedVideo, ...]:
-    """Adapt parsed V1 records in input order without performing I/O."""
+    """Adapt parsed records in input order without performing I/O."""
 
-    return tuple(adapt_v1(record) for record in records)
+    adapted: list[NormalizedVideo] = []
+    for record in records:
+        if isinstance(record, V2SourceRecord):
+            adapted.append(adapt_v2(record))
+        elif isinstance(record, RawVideo) and record.source_version is SourceModelVersion.V1:
+            adapted.append(adapt_v1(record))
+        else:
+            raise TypeError("compile_source_records received an unsupported source record")
+    return tuple(adapted)
 
 
-def _compile_v1_corpus(records: tuple[V1SourceRecord | RawVideo, ...]) -> NormalizedCorpus:
+def _compile_source_corpus(
+    records: tuple[V1SourceRecord | V2SourceRecord | RawVideo, ...],
+) -> NormalizedCorpus:
     videos = compile_source_records(records)
     index_items = tuple(
         NormalizedIndexItem(
@@ -161,7 +172,7 @@ def _compile_v1_corpus(records: tuple[V1SourceRecord | RawVideo, ...]) -> Normal
             ingested_at=record.index.ingested_at,
             cost_usd_total=record.index.cost_usd_total,
             provenance=Provenance(
-                source_version=SourceVersion.V1,
+                source_version=record.source_version,
                 location=f"index.json::items[{index}]",
                 source_index=index,
             ),
@@ -289,8 +300,9 @@ def _apply_overlays(
 
 
 def compile_corpus(
-    records: Iterable[V1SourceRecord | RawVideo | NormalizedVideo]
+    records: Iterable[V1SourceRecord | V2SourceRecord | RawVideo | NormalizedVideo]
     | V1SourceRecord
+    | V2SourceRecord
     | RawVideo
     | NormalizedVideo,
     overlays: object | None = None,
@@ -309,15 +321,16 @@ def compile_corpus(
         raise TypeError("compile_corpus accepts overlays or overlay_root, not both")
     if overlay_root is not None:
         overlays = overlay_root
-    if isinstance(records, (V1SourceRecord, RawVideo, NormalizedVideo)):
+    if isinstance(records, (V1SourceRecord, V2SourceRecord, RawVideo, NormalizedVideo)):
         values = (records,)
     else:
         values = tuple(records)
     if all(
-        isinstance(value, RawVideo) and value.source_version.value == int(SourceVersion.V1)
+        isinstance(value, RawVideo)
+        and value.source_version in (SourceModelVersion.V1, SourceModelVersion.V2)
         for value in values
     ):
-        corpus = _compile_v1_corpus(values)  # type: ignore[arg-type]
+        corpus = _compile_source_corpus(values)  # type: ignore[arg-type]
     elif all(isinstance(value, NormalizedVideo) for value in values):
         corpus = NormalizedCorpus(
             videos=values,  # type: ignore[arg-type]
@@ -326,7 +339,9 @@ def compile_corpus(
             warnings=(),
         )
     else:
-        raise TypeError("records must contain only V1SourceRecord or only NormalizedVideo values")
+        raise TypeError(
+            "records must contain only V1/V2 source records or only NormalizedVideo values"
+        )
     return _apply_overlays(corpus, _coerce_registries(overlays))
 
 

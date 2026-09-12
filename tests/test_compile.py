@@ -3,14 +3,17 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from yt_insights_web.build import BuildError, build_site
+from yt_insights_web.corpus.adapters.v2 import V2SourceRecord
 from yt_insights_web.corpus.compiler import OVERLAY_APPLICATION_ORDER, compile_corpus
 from yt_insights_web.corpus.identity import claim_fingerprint
 from yt_insights_web.corpus.registries import RegistryValidationError
+from yt_insights_web.corpus.source_models import V1SourceRecord
 from yt_insights_web.load import load_corpus
 from yt_insights_web.normalize import normalize_corpus
 
@@ -19,6 +22,7 @@ FIXTURE = ROOT / "tests" / "fixtures" / "v1-edge"
 GOLDEN = ROOT / "tests" / "fixtures" / "golden" / "v1-edge-site-manifest.json"
 VIDEO_ID = "V1Edge9xYzA"
 CLAIM_REF = f"claim:{VIDEO_ID}:key_claims:0"
+V2_CONTRACT = ROOT / "tests" / "fixtures" / "v2-contract"
 
 
 def _manifest(path: Path) -> dict[str, str]:
@@ -91,6 +95,25 @@ def _populated_documents() -> dict[str, object]:
             ],
         },
     }
+
+
+def _write_v2_source(tmp_path: Path, video_id: str) -> Path:
+    source = tmp_path / video_id
+    shutil.copytree(FIXTURE, source)
+    index_path = source / "index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    index["items"][0]["video_id"] = video_id
+    index_path.write_text(json.dumps(index) + "\n", encoding="utf-8")
+    summary_md = source / "artifacts" / "v1-edge-video" / "summary.md"
+    summary_md.write_text(
+        summary_md.read_text(encoding="utf-8").replace(VIDEO_ID, video_id),
+        encoding="utf-8",
+    )
+    for filename in ("summary.json", "insights.json"):
+        payload = json.loads((V2_CONTRACT / filename.replace(".json", "-golden.json")).read_text())
+        text = json.dumps(payload).replace("v2-contract-001", video_id)
+        (source / "artifacts" / "v1-edge-video" / filename).write_text(text, encoding="utf-8")
+    return source
 
 
 def _write_overlays(source: Path, documents: dict[str, object]) -> None:
@@ -234,3 +257,66 @@ def test_source_manifest_is_unchanged_by_populated_build(tmp_path: Path) -> None
     build_site(source, tmp_path / "site", generated_at=None)
 
     assert _manifest(source) == before
+
+
+def test_pure_v1_build_keeps_golden_output_and_source_bytes(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    shutil.copytree(FIXTURE, source)
+    before = _manifest(source)
+
+    build_site(source, tmp_path / "site", generated_at=None)
+
+    assert _manifest(source) == before
+    assert _manifest(tmp_path / "site") == json.loads(GOLDEN.read_text(encoding="utf-8"))
+
+
+def test_pure_v2_compiles_and_rebuilds_deterministically(tmp_path: Path) -> None:
+    source = _write_v2_source(tmp_path, "v2-contract-001")
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+
+    loaded = load_corpus(source)
+    assert isinstance(loaded.videos[0], V2SourceRecord)
+    compiled = compile_corpus(loaded.videos)
+    assert compiled.videos[0].provenance.version == 2
+    assert compiled.videos[0].core_insights[0].id == (
+        "item-v1:v2-contract-001:core-insight-1"
+    )
+
+    build_site(source, first, generated_at=None)
+    build_site(source, second, generated_at=None)
+
+    assert _manifest(first) == _manifest(second)
+
+
+def test_mixed_source_records_compile_per_artifact_in_report_order(tmp_path: Path) -> None:
+    v1_loaded = load_corpus(FIXTURE)
+    v1 = v1_loaded.videos[0]
+    v1_b = replace(v1, index=replace(v1.index, video_id="V1-second"))
+    v1_d = replace(v1, index=replace(v1.index, video_id="V1-fourth"))
+    v2_a = load_corpus(_write_v2_source(tmp_path, "v2-contract-001")).videos[0]
+    v2_b = load_corpus(_write_v2_source(tmp_path, "v2-contract-002")).videos[0]
+
+    records = (v1, v1_b, v2_a, v1_d, v2_b)
+    compiled = compile_corpus(records)
+
+    assert [video.provenance.version for video in compiled.videos] == [1, 1, 2, 1, 2]
+    assert [video.id for video in compiled.videos] == [
+        "V1Edge9xYzA",
+        "V1-second",
+        "v2-contract-001",
+        "V1-fourth",
+        "v2-contract-002",
+    ]
+    assert all(isinstance(record, (V1SourceRecord, V2SourceRecord)) for record in records)
+
+
+def test_v1_without_sibling_summary_json_keeps_legacy_record_shape(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    shutil.copytree(FIXTURE, source)
+
+    loaded = load_corpus(source)
+
+    assert not (source / "artifacts" / "v1-edge-video" / "summary.json").exists()
+    assert isinstance(loaded.videos[0], V1SourceRecord)
+    assert loaded.videos[0].schema_version is None

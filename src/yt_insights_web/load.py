@@ -9,13 +9,22 @@ silently pass through the permissive legacy validator.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from .corpus.source_models import SourceModelError, V1SourceRecord
+from .corpus.adapters.v2 import (
+    ARTIFACT_KIND_INSIGHTS,
+    ARTIFACT_KIND_SUMMARY,
+    V2SourceRecord,
+    V2ValidationError,
+    validate_v2_insights,
+    validate_v2_summary,
+)
+from .corpus.source_models import SourceFrontmatter, SourceModelError, V1SourceRecord
 from .frontmatter import FrontMatterError, parse_summary
 from .models import (
     CLAIM_TYPES,
@@ -32,11 +41,42 @@ from .models import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class CorpusValidationIssue:
+    """Structured context for one source-bundle validation failure."""
+
+    code: str
+    path: str
+    message: str
+    video_id: str | None = None
+    artifact: str | None = None
+    schema_version: object = "unknown"
+
+    def __str__(self) -> str:
+        context = []
+        if self.video_id is not None:
+            context.append(f"video={self.video_id}")
+        if self.artifact is not None:
+            context.append(f"artifact={self.artifact}")
+        context.append(f"schema_version={self.schema_version}")
+        return f"{self.path}: {self.message} [{', '.join(context)}]"
+
+
 class CorpusValidationError(ValueError):
     """Raised after all independent source validation errors are collected."""
 
-    def __init__(self, errors: Iterable[str]):
-        self.errors = tuple(errors)
+    def __init__(self, errors: Iterable[str | CorpusValidationIssue]):
+        issues: list[CorpusValidationIssue] = []
+        rendered: list[str] = []
+        for error in errors:
+            if isinstance(error, CorpusValidationIssue):
+                issues.append(error)
+                rendered.append(str(error))
+            else:
+                issues.append(CorpusValidationIssue(code="validation", path="", message=error))
+                rendered.append(error)
+        self.issues = tuple(issues)
+        self.errors = tuple(rendered)
         message = "corpus validation failed:\n" + "\n".join(f" - {error}" for error in self.errors)
         super().__init__(message)
 
@@ -139,25 +179,114 @@ def _safe_artifact_path(
     return resolved, relative
 
 
-def _read_json(path: Path, location: str, errors: list[str]) -> Any | None:
+def _read_json(
+    path: Path,
+    location: str,
+    errors: list[object],
+    *,
+    video_id: str | None = None,
+    artifact: str | None = None,
+) -> Any | None:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        errors.append(f"{location}: cannot read JSON: {exc}")
-        return None
-
-
-def _detect_artifact_version(data: Any, location: str, errors: list[str]) -> int | None:
-    """Select one version for one artifact before running V1 validation."""
-
-    if not isinstance(data, dict) or "schema_version" not in data:
-        return 1
-    version = data["schema_version"]
-    if isinstance(version, bool) or not isinstance(version, int) or version != 1:
         errors.append(
-            f"{location}: unsupported schema version {version!r}; expected numeric version 1"
+            CorpusValidationIssue(
+                code="invalid_json",
+                path=location,
+                message=f"cannot read JSON: {exc}",
+                video_id=video_id,
+                artifact=artifact,
+                schema_version="unknown",
+            )
         )
         return None
+
+
+def _detect_artifact_version(
+    data: Any,
+    location: str,
+    errors: list[object],
+    *,
+    video_id: str | None = None,
+    artifact: str | None = None,
+    artifact_kind: str | None = None,
+    supported_versions: tuple[int, ...] = (1,),
+    require_object: bool = False,
+    require_version_field: bool = False,
+) -> int | None:
+    """Select one version for one artifact before running V1 validation."""
+
+    if not isinstance(data, dict):
+        if require_object:
+            errors.append(
+                CorpusValidationIssue(
+                    code="missing_metadata",
+                    path=location,
+                    message="structured artifact must be an object with schema_version",
+                    video_id=video_id,
+                    artifact=artifact,
+                    schema_version="unknown",
+                )
+            )
+            return None
+        return 1
+    if "schema_version" not in data:
+        if require_version_field:
+            errors.append(
+                CorpusValidationIssue(
+                    code="missing_metadata",
+                    path=f"{location}.schema_version",
+                    message="missing schema_version for structured artifact",
+                    video_id=video_id,
+                    artifact=artifact,
+                    schema_version="missing",
+                )
+            )
+            return None
+        return 1
+    version = data["schema_version"]
+    if (
+        isinstance(version, bool)
+        or not isinstance(version, int)
+        or version not in supported_versions
+    ):
+        errors.append(
+            CorpusValidationIssue(
+                code="unsupported_schema_version",
+                path=location,
+                message=(
+                    f"unsupported schema version {version!r}; "
+                    "expected numeric version "
+                    f"{', '.join(str(item) for item in supported_versions)}"
+                ),
+                video_id=video_id,
+                artifact=artifact,
+                schema_version=version,
+            )
+        )
+        return None
+    if version == 2 and artifact_kind in {ARTIFACT_KIND_INSIGHTS, ARTIFACT_KIND_SUMMARY}:
+        expected_kind = (
+            ARTIFACT_KIND_INSIGHTS
+            if artifact_kind == ARTIFACT_KIND_INSIGHTS
+            else ARTIFACT_KIND_SUMMARY
+        )
+        if data.get("artifact_kind") != expected_kind:
+            errors.append(
+                CorpusValidationIssue(
+                    code="unsupported_schema_version",
+                    path=location,
+                    message=(
+                        f"unsupported schema version 2: artifact_kind must be "
+                        f"{expected_kind!r}, got {data.get('artifact_kind')!r}"
+                    ),
+                    video_id=video_id,
+                artifact=artifact,
+                    schema_version=version,
+                )
+            )
+            return None
     return version
 
 
@@ -363,8 +492,11 @@ def _validate_frontmatter(
 
 
 def _parse_index(
-    source: Path, errors: list[str]
-) -> tuple[list[IndexItem], dict[str, tuple[Path, str, Path, str]]]:
+    source: Path, errors: list[object]
+) -> tuple[
+    list[IndexItem],
+    dict[str, tuple[Path, str, Path, str, Path | None, str | None]],
+]:
     index_path = source / "index.json"
     data = _read_json(index_path, _location(index_path), errors)
     if data is None:
@@ -377,7 +509,7 @@ def _parse_index(
         errors.append(f"{_location(index_path)}: root must contain an items array")
         return [], {}
     index_items: list[IndexItem] = []
-    artifact_paths: dict[str, tuple[Path, str, Path, str]] = {}
+    artifact_paths: dict[str, tuple[Path, str, Path, str, Path | None, str | None]] = {}
     for index, raw in enumerate(items):
         location = f"{_location(index_path)}::items[{index}]"
         mapping = _mapping(raw, location, errors)
@@ -428,7 +560,20 @@ def _parse_index(
         )
         index_items.append(item)
         if summary and insights:
-            artifact_paths[video_id] = (summary[0], summary[1], insights[0], insights[1])
+            summary_json = summary[0].with_name("summary.json")
+            summary_json_pair = (
+                (summary_json, summary_json.relative_to(source).as_posix())
+                if summary[0].name == "summary.md" and summary_json.is_file()
+                else (None, None)
+            )
+            artifact_paths[video_id] = (
+                summary[0],
+                summary[1],
+                insights[0],
+                insights[1],
+                summary_json_pair[0],
+                summary_json_pair[1],
+            )
     return index_items, artifact_paths
 
 
@@ -436,49 +581,274 @@ def load_corpus(source: str | Path) -> LoadedCorpus:
     """Load analyzed records from a source checkout and validate all fields."""
 
     source_root = Path(source).expanduser().resolve()
-    errors: list[str] = []
+    errors: list[object] = []
     warnings: list[str] = []
     index_items, artifact_paths = _parse_index(source_root, errors)
     videos: list[RawVideo] = []
+    evidence_ids: dict[str, tuple[str, str]] = {}
+
+    def has_error(path: str, code: str) -> bool:
+        return any(
+            isinstance(error, CorpusValidationIssue)
+            and error.path == path
+            and error.code == code
+            for error in errors
+        )
+
+    def append_v2_errors(
+        exception: V2ValidationError,
+        *,
+        video_id: str,
+        artifact: str,
+        schema_version: object = 2,
+    ) -> None:
+        for detail in exception.errors:
+            path, separator, message = detail.partition(": ")
+            errors.append(
+                CorpusValidationIssue(
+                    code="invalid_v2_artifact",
+                    path=path if separator else artifact,
+                    message=message if separator else detail,
+                    video_id=video_id,
+                    artifact=artifact,
+                    schema_version=schema_version,
+                )
+            )
+
+    def record_evidence_ids(
+        payload: object,
+        *,
+        video_id: str,
+        artifact: str,
+    ) -> None:
+        if not isinstance(payload, Mapping):
+            return
+        values = payload.get("evidence")
+        if not isinstance(values, (list, tuple)):
+            return
+        for index, value in enumerate(values):
+            if not isinstance(value, Mapping) or not isinstance(value.get("id"), str):
+                continue
+            persisted_id = value["id"]
+            previous = evidence_ids.get(persisted_id)
+            if previous is not None:
+                errors.append(
+                    CorpusValidationIssue(
+                        code="duplicate_evidence_id",
+                        path=f"{artifact}::evidence[{index}].id",
+                        message=(
+                            f"duplicate evidence ID {persisted_id!r}; first seen at "
+                            f"{previous[1]} for video {previous[0]!r}"
+                        ),
+                        video_id=video_id,
+                        artifact=artifact,
+                        schema_version=2,
+                    )
+                )
+            else:
+                evidence_ids[persisted_id] = (video_id, artifact)
+
     for item in index_items:
         if item.status != "analyzed":
             continue
         paths = artifact_paths.get(item.video_id)
         if paths is None:
             continue
-        summary_path, summary_relative, insights_path, insights_relative = paths
+        (
+            summary_path,
+            summary_relative,
+            insights_path,
+            insights_relative,
+            summary_json_path,
+            summary_json_relative,
+        ) = paths
         try:
             parsed = parse_summary(summary_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, FrontMatterError) as exc:
             errors.append(f"{summary_relative}: {exc}")
             continue
-        if _detect_artifact_version(parsed.metadata, summary_relative, errors) is None:
-            continue
         _validate_frontmatter(parsed.metadata, item, summary_relative, errors, warnings)
-        insights = _read_json(insights_path, insights_relative, errors)
-        if (
-            insights is not None
-            and _detect_artifact_version(insights, insights_relative, errors) is None
-        ):
+
+        summary_json: Any | None = None
+        summary_version = 1
+        if summary_json_path is not None and summary_json_relative is not None:
+            summary_json = _read_json(
+                summary_json_path,
+                summary_json_relative,
+                errors,
+                video_id=item.video_id,
+                artifact=summary_json_relative,
+            )
+            if summary_json is None:
+                if not has_error(summary_json_relative, "invalid_json"):
+                    errors.append(
+                        CorpusValidationIssue(
+                            code="missing_metadata",
+                            path=summary_json_relative,
+                            message="JSON value is null; schema_version is unknown",
+                            video_id=item.video_id,
+                            artifact=summary_json_relative,
+                            schema_version="unknown",
+                        )
+                    )
+                continue
+            detected_summary_version = _detect_artifact_version(
+                summary_json,
+                summary_json_relative,
+                errors,
+                video_id=item.video_id,
+                artifact=summary_json_relative,
+                artifact_kind=ARTIFACT_KIND_SUMMARY,
+                supported_versions=(2,),
+                require_object=True,
+                require_version_field=True,
+            )
+            if detected_summary_version is None:
+                continue
+            summary_version = detected_summary_version
+            if summary_version == 2:
+                record_evidence_ids(
+                    summary_json,
+                    video_id=item.video_id,
+                    artifact=summary_json_relative,
+                )
+                try:
+                    summary_json = validate_v2_summary(
+                        summary_json,
+                        path=summary_json_relative,
+                        expected_video_id=item.video_id,
+                    )
+                except V2ValidationError as exc:
+                    append_v2_errors(
+                        exc,
+                        video_id=item.video_id,
+                        artifact=summary_json_relative,
+                    )
+                    continue
+
+        insights = _read_json(
+            insights_path,
+            insights_relative,
+            errors,
+            video_id=item.video_id,
+            artifact=insights_relative,
+        )
+        if insights is None:
+            if not has_error(insights_relative, "invalid_json"):
+                errors.append(
+                    CorpusValidationIssue(
+                        code="missing_metadata",
+                        path=insights_relative,
+                        message="JSON value is null; schema_version is unknown",
+                        video_id=item.video_id,
+                        artifact=insights_relative,
+                        schema_version="unknown",
+                    )
+                )
             continue
-        validated = _validate_insights(insights, errors)
-        if validated is None:
+        insights_version = _detect_artifact_version(
+            insights,
+            insights_relative,
+            errors,
+            video_id=item.video_id,
+            artifact=insights_relative,
+            artifact_kind=ARTIFACT_KIND_INSIGHTS,
+            supported_versions=(1, 2),
+            require_object=True,
+        )
+        if insights_version is None:
             continue
-        try:
-            videos.append(
-                V1SourceRecord.from_mappings(
-                    index=item,
-                    frontmatter={
-                        key: value
-                        for key, value in parsed.metadata.items()
-                        if key != "schema_version"
-                    },
-                    summary_markdown=parsed.markdown,
-                    insights=validated,
-                    summary_path=summary_relative,
-                    insights_path=insights_relative,
+
+        if summary_json is not None and insights_version != 2:
+            errors.append(
+                CorpusValidationIssue(
+                    code="bundle_schema_mismatch",
+                    path=insights_relative,
+                    message=(
+                        "schema_version 1 contradicts sibling summary.json "
+                        "schema_version 2"
+                    ),
+                    video_id=item.video_id,
+                    artifact=insights_relative,
+                    schema_version=insights_version,
                 )
             )
+            continue
+
+        if insights_version == 2:
+            record_evidence_ids(
+                insights,
+                video_id=item.video_id,
+                artifact=insights_relative,
+            )
+            try:
+                validated_v2 = validate_v2_insights(
+                    insights,
+                    path=insights_relative,
+                    expected_video_id=item.video_id,
+                )
+            except V2ValidationError as exc:
+                append_v2_errors(
+                    exc,
+                    video_id=item.video_id,
+                    artifact=insights_relative,
+                )
+                continue
+            if (
+                isinstance(summary_json, Mapping)
+                and summary_json.get("video_id") != validated_v2.get("video_id")
+            ):
+                errors.append(
+                    CorpusValidationIssue(
+                        code="bundle_identity_mismatch",
+                        path=f"{summary_json_relative}.video_id",
+                        message=(
+                            f"does not agree with {insights_relative}.video_id "
+                            f"{validated_v2.get('video_id')!r}"
+                        ),
+                        video_id=item.video_id,
+                        artifact=summary_json_relative,
+                        schema_version=2,
+                    )
+                )
+                continue
+            validated = validated_v2
+        else:
+            validated = _validate_insights(insights, errors)
+            if validated is None:
+                continue
+        try:
+            frontmatter = SourceFrontmatter.from_mapping(
+                {
+                    key: value
+                    for key, value in parsed.metadata.items()
+                    if key != "schema_version"
+                }
+            )
+            if insights_version == 2:
+                videos.append(
+                    V2SourceRecord.from_mappings(
+                        index=item,
+                        frontmatter=frontmatter,
+                        summary_markdown=parsed.markdown,
+                        summary_json=summary_json if summary_version == 2 else None,
+                        insights_json=validated,
+                        summary_path=summary_relative,
+                        insights_path=insights_relative,
+                        summary_json_path=summary_json_relative if summary_version == 2 else None,
+                    )
+                )
+            else:
+                videos.append(
+                    V1SourceRecord.from_mappings(
+                        index=item,
+                        frontmatter=frontmatter,
+                        summary_markdown=parsed.markdown,
+                        insights=validated,
+                        summary_path=summary_relative,
+                        insights_path=insights_relative,
+                    )
+                )
         except SourceModelError as exc:
             errors.append(f"{insights_relative}: {exc}")
     if errors:

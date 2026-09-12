@@ -1,0 +1,167 @@
+{
+  "schema_version": 2,
+  "artifact_kind": "video-insights",
+  "video_id": "v2-contract-001",
+  "evidence": [
+    {
+      "id": "evidence-v1:v2-contract-001:insight-source-a",
+      "text": "A system's behavior emerges from the relationships among its parts.",
+      "timestamp_seconds": 12.5,
+      "source_url": "https://www.youtube.com/watch?v=v2-contract-001",
+      "provenance": {
+        "origin": "summary_quote",
+        "timestamp_method": "extracted-by-model"
+      }
+    },
+    {
+      "id": "evidence-v1:v2-contract-001:insight-source-b",
+      "text": "Exact matching can recover a timestamp without changing the source text.",
+      "timestamp_seconds": 37,
+      "source_url": "https://www.youtube.com/watch?v=v2-contract-001&t=37s",
+      "provenance": {
+        "origin": "summary_quote",
+        "timestamp_method": "recovered-exact-match"
+      }
+    }
+  ],
+  "topics": [
+    {
+      "id": "item-v1:v2-contract-001:topic-systems",
+      "label": "systems thinking",
+      "origin": "extraction"
+    },
+    {
+      "id": "item-v1:v2-contract-001:topic-evaluation",
+      "label": "evaluation",
+      "origin": "extraction"
+    }
+  ],
+  "concept_candidates": [
+    {
+      "id": "item-v1:v2-contract-001:concept-emergence",
+      "label": "emergent behavior",
+      "origin": "extraction"
+    }
+  ],
+  "core_insights": [
+    {
+      "id": "item-v1:v2-contract-001:core-insight-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:does-not-exist"
+      ],
+      "insight": "System-level behavior cannot be inferred from isolated component scores alone.",
+      "type": "mental_model",
+      "why_it_matters": "Teams can otherwise optimize parts while degrading the assembled system.",
+      "generalization": "Evaluate interactions wherever behavior emerges from composition.",
+      "evidence_strength": "strong",
+      "novelty": "high"
+    }
+  ],
+  "deep_dives": [
+    {
+      "id": "item-v1:v2-contract-001:deep-dive-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:insight-source-a"
+      ],
+      "topic": "Scenario-level evaluation",
+      "research_question": "Which scenarios expose interaction failures most reliably?",
+      "why": "Component metrics can hide coordination problems.",
+      "trigger_insight": "System behavior emerges from relationships.",
+      "priority": "high"
+    }
+  ],
+  "article_ideas": [
+    {
+      "id": "item-v1:v2-contract-001:article-idea-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:insight-source-a"
+      ],
+      "title": "The system is the unit of evaluation",
+      "thesis": "Interaction outcomes deserve their own evaluation layer.",
+      "angle": "Show how local optimization misses system failures.",
+      "based_on": "System-level behavior",
+      "audience": "Engineering leaders"
+    }
+  ],
+  "project_ideas": [
+    {
+      "id": "item-v1:v2-contract-001:project-idea-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:insight-source-b"
+      ],
+      "name": "Interaction Failure Atlas",
+      "hypothesis": "A scenario library will reveal recurring coordination failures.",
+      "poc": "Build a small corpus of multi-component evaluation scenarios.",
+      "measurement": "Count failures found only by scenario-level tests.",
+      "based_on": "Relationship-first evaluation",
+      "raw_fit": "new"
+    }
+  ],
+  "architectural_implications": [
+    {
+      "id": "item-v1:v2-contract-001:architectural-implication-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:insight-source-a"
+      ],
+      "observation": "Interactions can dominate individual component quality.",
+      "before": "Evaluation focuses on isolated modules.",
+      "after": "Evaluation includes assembled workflows.",
+      "consequence": "Architecture reviews must include system-level scenarios."
+    }
+  ],
+  "tradeoffs_and_failure_modes": [
+    {
+      "id": "item-v1:v2-contract-001:tradeoff-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:insight-source-b"
+      ],
+      "topic": "Local optimization",
+      "benefit": "Component tests are fast and easy to isolate.",
+      "cost_or_risk": "They may miss failures caused by interactions."
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "item-v1:v2-contract-001:open-question-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:insight-source-a"
+      ],
+      "question": "How much scenario coverage is enough?",
+      "why_unresolved": "Interaction spaces grow faster than test budgets.",
+      "research_direction": "Compare coverage heuristics against discovered failures."
+    }
+  ],
+  "key_claims": [
+    {
+      "id": "claim-v1:v2-contract-001:key-claim-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:insight-source-a"
+      ],
+      "claim": "System-level evaluation finds classes of failures that isolated evaluation misses.",
+      "claim_type": "empirical",
+      "verification_requested": true,
+      "verification_question": "Can a benchmark quantify the gap across representative workflows?"
+    },
+    {
+      "id": "claim-v1:v2-contract-001:key-claim-2",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:insight-source-b"
+      ],
+      "claim": "Exact source matching is safer than guessing missing evidence timing.",
+      "claim_type": "practice",
+      "verification_requested": false,
+      "verification_question": null
+    }
+  ],
+  "connections": [
+    {
+      "id": "item-v1:v2-contract-001:connection-1",
+      "evidence_refs": [
+        "evidence-v1:v2-contract-001:insight-source-a"
+      ],
+      "concept": "systems thinking",
+      "connects_to": "integration testing",
+      "relationship": "Both evaluate behavior produced by interactions."
+    }
+  ]
+}
