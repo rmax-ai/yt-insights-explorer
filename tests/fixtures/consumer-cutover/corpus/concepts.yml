@@ -1,0 +1,7 @@
+schema_version: 1
+concepts:
+  - id: concept_canonical
+    canonical_name: Canonical Concept
+    aliases:
+      - Raw Alias
+    status: canonical

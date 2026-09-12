@@ -1,0 +1,8 @@
+schema_version: 1
+topics:
+  - id: topic_canonical
+    canonical_name: Canonical Topic
+    aliases:
+      - raw alias
+      - tag-only
+    status: canonical

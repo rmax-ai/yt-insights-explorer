@@ -1,0 +1,77 @@
+{
+  "core_insights": [
+    {
+      "insight": "Canonical records keep provenance visible.",
+      "type": "mental_model",
+      "why_it_matters": "Consumers can resolve labels without rewriting source facts.",
+      "generalization": "Keep raw values beside canonical references.",
+      "evidence_quotes": [
+        "Canonical records keep provenance visible."
+      ],
+      "evidence_strength": "strong",
+      "novelty": "high"
+    }
+  ],
+  "deep_dives": [
+    {
+      "topic": "tag-only",
+      "research_question": "How should a topic remain stable after a rename?",
+      "why": "Topic identity belongs to its own registry namespace.",
+      "trigger_insight": "Raw labels are not canonical names.",
+      "evidence_quotes": [],
+      "priority": "high"
+    }
+  ],
+  "article_ideas": [
+    {
+      "title": "Keep the raw label",
+      "thesis": "Canonical references should not erase source text.",
+      "angle": "Show the overlay boundary.",
+      "based_on": "The consumer cutover",
+      "audience": "Data engineers"
+    }
+  ],
+  "project_ideas": [],
+  "architectural_implications": [],
+  "tradeoffs_and_failure_modes": [],
+  "open_questions": [],
+  "key_claims": [
+    {
+      "claim": "A resolved label still needs source provenance.",
+      "claim_type": "factual",
+      "evidence": "The fixture stores both the alias and its source location.",
+      "verification_needed": true,
+      "verification_question": "Does the registry preserve the original label?"
+    },
+    {
+      "claim": "Unresolved labels remain deterministic nodes.",
+      "claim_type": "factual",
+      "evidence": "Unknown labels are not discarded.",
+      "verification_needed": false,
+      "verification_question": null
+    },
+    {
+      "claim": "Topic IDs and concept IDs are separate namespaces.",
+      "claim_type": "factual",
+      "evidence": "The fixture has separate concept and topic overlays.",
+      "verification_needed": true,
+      "verification_question": "Can equal raw labels resolve to distinct IDs?"
+    }
+  ],
+  "connections": [
+    {
+      "concept": "Raw Alias",
+      "connects_to": "Connection Only",
+      "relationship": "resolves to"
+    },
+    {
+      "concept": "Connection Only",
+      "connects_to": "Unknown Legacy",
+      "relationship": "remains explicit"
+    }
+  ],
+  "tags": [
+    "raw alias",
+    "tag-only"
+  ]
+}

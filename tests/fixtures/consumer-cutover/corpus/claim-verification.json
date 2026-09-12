@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "id": "review:verified",
+      "claim_refs": [
+        "claim:ConsumerV1abc:key_claims:0"
+      ],
+      "claim_fingerprint": "claim-fingerprint-v1:2f08802caecdf86fe93be76d8f7d3f8e0a4ec52491e3274ee202a973db3852db",
+      "status": "verified",
+      "method": "fixture review",
+      "evidence": [
+        {
+          "url": "https://example.test/verified",
+          "note": "fixture source"
+        }
+      ],
+      "reviewed_at": "2026-09-12T00:00:00Z",
+      "reviewer": "fixture"
+    },
+    {
+      "id": "review:refuted",
+      "claim_refs": [
+        "claim:ConsumerV1abc:key_claims:2"
+      ],
+      "claim_fingerprint": "claim-fingerprint-v1:1262ec92fe213cf6b56599b3a866cc1bd59c64befde19bef1f416f8ddbe9fe3e",
+      "status": "refuted",
+      "method": "fixture review",
+      "evidence": [
+        {
+          "url": "https://example.test/refuted",
+          "note": "fixture source"
+        }
+      ],
+      "reviewed_at": "2026-09-12T00:00:00Z",
+      "reviewer": "fixture"
+    }
+  ]
+}

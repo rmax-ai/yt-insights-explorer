@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "video_id": "ConsumerV1abc",
+      "title": "Canonical consumer cutover fixture",
+      "channel": "Consumer Fixture",
+      "status": "analyzed",
+      "ingested_at": "2026-09-12T00:00:00Z",
+      "artifacts": {
+        "transcript": null,
+        "summary": "artifacts/consumer-v1/summary.md",
+        "insights": "artifacts/consumer-v1/insights.json"
+      },
+      "cost_usd_total": 0.01
+    }
+  ]
+}

@@ -9,6 +9,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from .corpus import compiler
+from .corpus.normalized_models import NormalizedCorpus as CanonicalCorpus
 from .corpus.registries import OverlayValidationError
 from .derive import derive_claims, derive_ideas, derive_trends
 from .graph import build_concept_graph
@@ -55,11 +57,25 @@ def _counts(
     }
 
 
-def _data_files(corpus: NormalizedCorpus, config: RenderConfig) -> dict[str, Any]:
-    ideas = derive_ideas(corpus.videos)
-    claims = derive_claims(corpus.videos)
-    trends = derive_trends(corpus.videos)
-    concept_graph = build_concept_graph(corpus.concepts, corpus.videos)
+def _data_files(
+    corpus: NormalizedCorpus,
+    config: RenderConfig,
+    canonical: CanonicalCorpus | None = None,
+) -> dict[str, Any]:
+    consumer = canonical if canonical is not None else corpus.videos
+    compatibility = (
+        all(video.provenance.version == 1 for video in canonical.videos)
+        if canonical is not None
+        else True
+    )
+    ideas = derive_ideas(consumer, compatibility=compatibility)
+    claims = derive_claims(consumer, compatibility=compatibility)
+    trends = derive_trends(consumer, compatibility=compatibility)
+    concept_graph = (
+        build_concept_graph(canonical, compatibility=compatibility)
+        if canonical is not None
+        else build_concept_graph(corpus.concepts, corpus.videos)
+    )
     counts = _counts(corpus, ideas, claims)
     ordered_videos = sorted(
         corpus.videos,
@@ -165,7 +181,19 @@ def build_site(
         loaded = load_corpus(source_root)
         # The producer checkout owns all overlays.  The compiler consumes this
         # root while the normalized compatibility projection stays unchanged.
-        normalized = normalize_corpus(loaded, overlay_root=source_root)
+        # The legacy projection intentionally skips overlays; applying them
+        # here once keeps canonical consumers and compatibility rendering
+        # on their respective contracts without resolving the same data twice.
+        normalized = normalize_corpus(loaded)
+        canonical = compiler.apply_overlays(
+            CanonicalCorpus(
+                videos=compiler.compile_source_records(loaded.videos),
+                concepts=(),
+                index_items=(),
+                warnings=(),
+            ),
+            overlay_root=source_root,
+        )
     except (CorpusValidationError, OverlayValidationError) as exc:
         raise BuildError(str(exc)) from exc
     if publication_mode == "public" and not acknowledge_private_unreviewed:
@@ -189,7 +217,7 @@ def build_site(
     backup: Path | None = None
     try:
         rendered = render_site(normalized, config)
-        data = _data_files(normalized, config)
+        data = _data_files(normalized, config, canonical)
         _write_tree(temporary, rendered, data)
         _basic_validate_output(temporary)
         if output_path.exists():

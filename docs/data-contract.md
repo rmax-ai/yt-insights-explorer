@@ -6,6 +6,17 @@ and one final newline. Values are derived from the normalized in-memory corpus;
 the files are export and audit artifacts, not a runtime dependency of the
 pre-rendered pages.
 
+
+Derivation, graph construction, and search are computed from the canonical
+normalized records and the compiler's resolved concept/topic and claim-ledger
+state. The current site renderer receives a compatibility projection until the
+next rendering cutover. For a pure-V1 corpus that projection retains the
+legacy `tags`, `tag_rankings`, and `verification_status` fields and their
+published values and order byte-for-byte. Raw labels, resolution provenance,
+canonical IDs, unresolved state, extraction-time
+`verification_requested`, and nullable ledger review state remain available
+inside the canonical consumer records; they are not inferred from display
+names.
 ## `data/corpus.json`
 ## Source-relative overlays
 
@@ -188,4 +199,8 @@ Contains the bounded records embedded into the Search page. Records have
 `id`, `kind`, `title`, `text`, `tags`, `channel`, `published_date`, and a
 relative URL from `search/index.html`. Text is truncated to 2,000 Unicode code
 points. Evidence quotes are included in their parent insight or deep-dive
-record and are not indexed separately.
+record and are not indexed separately. The canonical search projection uses
+`occurrence_id` plus `occurrence_id_kind` for source occurrences and
+`concept_ids` for explicit concept references; it never overloads a generic
+`id` or uses display-name-only tags. The legacy fields in this section remain
+the renderer compatibility projection until E3-T4.
