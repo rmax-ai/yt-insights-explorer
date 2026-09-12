@@ -7,6 +7,80 @@ the files are export and audit artifacts, not a runtime dependency of the
 pre-rendered pages.
 
 ## `data/corpus.json`
+## Source-relative overlays
+
+Before projection, compilation may read these optional files from the source
+root:
+
+```text
+corpus/concepts.yml
+corpus/topics.yml
+corpus/projects.yml
+corpus/claim-verification.json
+```
+
+The overlay root is always the producer/source checkout. It is never the
+generated site tree. A missing file is **absent optional enrichment** and is
+treated as an empty overlay. A present empty, schema-versioned document is
+also valid. A present malformed document fails closed. Structural corruption
+includes malformed envelopes, unsupported schema versions, duplicate IDs,
+dangling occurrence references, invalid supersession cycles, conflicting
+active reviews, and fingerprint mismatches. Unknown source labels, missing
+review entries, and unavailable optional values remain explicit unresolved
+state and do not fail unrelated records.
+
+The compiler applies overlays in this fixed order:
+
+1. concepts and topics;
+2. projects;
+3. claim reviews.
+
+The resolution state and claim-review ledger are internal compiler state in
+this migration step. The generated projection below intentionally retains the
+legacy shape and byte order. Consumers opt into resolved fields in a later
+migration step.
+
+### Overlay fields
+
+Registry entries have a stable `id`, a `canonical_name`, raw `aliases`, and a
+`status`; projects use the same shape. Labels are normalized for lookup using
+Unicode NFC, casefolding, Unicode-whitespace collapse to one ASCII space, and
+trimming. Resolution retains the exact raw label, origin, source location,
+match method, resolved ID, and unresolved state internally. A retired or
+deprecated entry does not rewrite historical source data: downstream
+consumers must retain the raw label and its provenance even when it resolves
+to a retired registry ID.
+
+Claim reviews live in `claim-verification.json`:
+
+```json
+{
+  "schema_version": 1,
+  "policy": {"stale_after": "2026-09-10T00:00:00Z"},
+  "reviews": [
+    {
+      "id": "review-example",
+      "claim_refs": ["claim:video-id:key_claims:0"],
+      "claim_fingerprint": "claim-fingerprint-v1:<64 lowercase hex characters>",
+      "status": "verified",
+      "method": "primary-source review",
+      "evidence": [{"url": "https://example.test/source", "note": "source note"}],
+      "reviewed_at": "2026-09-11T00:00:00Z",
+      "reviewer": "reviewer"
+    }
+  ]
+}
+```
+
+`claim_refs` always identify occurrences in the form
+`claim:<video_id>:<section>:<index>`, never a fingerprint wildcard.
+Fingerprints must agree with every targeted occurrence. A review that
+intentionally targets a mixed fingerprint group must set `mixed_group: true`;
+that flag is valid only on a review entry. Active statuses are `verified` and
+`refuted`; non-active statuses are `stale` and `superseded`. `supersedes`
+explicitly replaces another review. No current time is generated or
+consulted during compilation.
+
 
 ```json
 {

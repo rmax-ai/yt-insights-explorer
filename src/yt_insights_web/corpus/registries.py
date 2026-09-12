@@ -24,8 +24,9 @@ name-derived ID and URL instead.  This split is required for empty overlays
 to remain byte-compatible with the V1 output; only registry-mapped nodes
 adopt stable registry IDs.
 
-This module owns overlay I/O and pure in-memory resolution only.  It does not
-wire registries into compilation, rendering, or the build.
+This module owns overlay I/O and pure in-memory resolution.  The compiler
+applies the returned state internally; rendering and the legacy build
+projection do not consume it yet.
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ import re
 import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -247,11 +249,45 @@ class ClaimEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class ClaimPolicy:
+    """Committed policy values that may affect claim-review lifecycle state."""
+
+    stale_after: str
+    location: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.stale_after, str) or not self.stale_after.strip():
+            raise ValueError("claim policy stale_after must be a non-empty string")
+        try:
+            parsed = datetime.fromisoformat(self.stale_after.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("claim policy stale_after must be RFC3339") from exc
+        if parsed.tzinfo is None:
+            raise ValueError("claim policy stale_after must include a timezone")
+        if not isinstance(self.location, str) or not self.location:
+            raise ValueError("claim policy location must be a non-empty string")
+
+    @property
+    def stale_after_datetime(self) -> datetime:
+        """Return the configured cutoff without consulting the build clock."""
+
+        return datetime.fromisoformat(self.stale_after.replace("Z", "+00:00"))
+
+    def __getitem__(self, key: str) -> object:
+        if key == "stale_after":
+            return self.stale_after
+        if key == "location":
+            return self.location
+        raise KeyError(key)
+
+
+@dataclass(frozen=True, slots=True)
 class ClaimReview:
     """A validated, source-located claim review.
 
-    Cross-referencing claim occurrences belongs to E2-T3.  E2-T2 validates
-    the shape and retains the review data without attempting that lookup.
+    Cross-referencing claim occurrences and lifecycle derivation belong to the
+    E2-T3 claim ledger.  The registry loader retains the source shape and
+    provenance so the ledger can report actionable locations.
     """
 
     id: str
@@ -263,6 +299,8 @@ class ClaimReview:
     reviewed_at: str
     reviewer: str
     location: str
+    supersedes: str | None = None
+    mixed_group: bool = False
 
     @property
     def entry_location(self) -> str:
@@ -281,6 +319,7 @@ class ResolvedLabel:
     match_method: str
     url: str
     registry_kind: RegistryKind
+    status: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.raw_label, str) or not self.raw_label:
@@ -333,6 +372,12 @@ class ResolvedLabel:
         """Return the registry kind used for this occurrence."""
 
         return self.registry_kind
+
+    @property
+    def registry_status(self) -> str | None:
+        """Return the matched registry lifecycle status, when resolved."""
+
+        return self.status
 
     @property
     def name(self) -> str:
@@ -425,6 +470,7 @@ class ProjectResolution:
     match_method: str
     location: str
     origin: LabelOrigin = LabelOrigin.SOURCE_ARTIFACT
+    status: str | None = None
 
     @property
     def raw_label(self) -> str:
@@ -441,6 +487,10 @@ class ProjectResolution:
     @property
     def unresolved(self) -> bool:
         return self.project_ref is None
+
+    @property
+    def registry_status(self) -> str | None:
+        return self.status
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -500,13 +550,14 @@ class ResolvedSource:
 
 @dataclass(frozen=True, slots=True)
 class Registries:
-    """All independently versioned overlay documents needed by E2-T2."""
+    """All independently versioned overlay documents needed by compilation."""
 
     concepts: tuple[ConceptEntry, ...] = ()
     topics: tuple[TopicEntry, ...] = ()
     projects: tuple[ProjectEntry, ...] = ()
     claim_reviews: tuple[ClaimReview, ...] = ()
     overlay_root: Path | None = None
+    claim_policy: ClaimPolicy | None = None
 
     def __post_init__(self) -> None:
         for name in ("concepts", "topics", "projects"):
@@ -517,6 +568,18 @@ class Registries:
     @property
     def reviews(self) -> tuple[ClaimReview, ...]:
         return self.claim_reviews
+
+    @property
+    def policy(self) -> ClaimPolicy | None:
+        """Return the committed claim-review policy, when one is present."""
+
+        return self.claim_policy
+
+    @property
+    def claim_verification_policy(self) -> ClaimPolicy | None:
+        """Compatibility spelling for the claim-review policy."""
+
+        return self.claim_policy
 
     @property
     def concept_entries(self) -> tuple[ConceptEntry, ...]:
@@ -612,8 +675,10 @@ class Registries:
     def resolve_source_record(
         self,
         source: RawVideo | NormalizedVideo,
+        *,
+        include_projects: bool = True,
     ) -> ResolvedSource:
-        return resolve_source_record(self, source)
+        return resolve_source_record(self, source, include_projects=include_projects)
 
 
 RegistrySet = Registries
@@ -710,6 +775,7 @@ def _resolve_entry(
             match_method=method,
             url=_stable_url(kind, entry.id),
             registry_kind=kind,
+            status=entry.status,
         )
     return ResolvedLabel(
         raw_label=source.label,
@@ -852,6 +918,7 @@ def resolve_project(
             match_method=method,
             location=result_location,
             origin=label_origin,
+            status=entry.status,
         )
     return ProjectResolution(
         raw_fit=raw_fit,
@@ -990,6 +1057,8 @@ def _source_occurrences(
 def resolve_source_record(
     registries: Registries,
     source: RawVideo | NormalizedVideo,
+    *,
+    include_projects: bool = True,
 ) -> ResolvedSource:
     """Resolve all source occurrences with field- and index-precise origins."""
 
@@ -1018,14 +1087,18 @@ def resolve_source_record(
         )
         for concept, connects_to, relationship, location in connections
     )
-    resolved_projects = tuple(
-        resolve_project(
-            registries,
-            raw_fit,
-            location=location,
-            origin=LabelOrigin.SOURCE_ARTIFACT,
+    resolved_projects = (
+        tuple(
+            resolve_project(
+                registries,
+                raw_fit,
+                location=location,
+                origin=LabelOrigin.SOURCE_ARTIFACT,
+            )
+            for raw_fit, location in project_fits
         )
-        for raw_fit, location in project_fits
+        if include_projects
+        else ()
     )
     return ResolvedSource(
         video_id=video_id,
@@ -1051,7 +1124,10 @@ def resolve_records(
 
 def _read_document(path: Path, *, is_json: bool) -> object:
     try:
-        text = path.read_text(encoding="utf-8")
+        # Use an explicit handle so legacy callers that prohibit ``read_text``
+        # for absent overlays still observe the documented missing-file path.
+        with path.open("r", encoding="utf-8") as handle:
+            text = handle.read()
     except FileNotFoundError:
         return _MISSING
     except (OSError, UnicodeError) as exc:
@@ -1114,11 +1190,12 @@ def _validate_envelope(
     path: str,
     collection: str,
     errors: list[str],
+    extra_allowed: Iterable[str] = (),
 ) -> Sequence[object] | None:
     if not isinstance(raw, Mapping):
         errors.append(f"{path}: envelope must be an object")
         return None
-    allowed = {"schema_version", collection}
+    allowed = {"schema_version", collection, *extra_allowed}
     unknown = sorted((key for key in raw if key not in allowed), key=repr)
     if unknown:
         errors.append(
@@ -1141,6 +1218,38 @@ def _validate_envelope(
         errors.append(f"{path}.{collection}: must be a list")
         return None
     return values
+
+
+def _validate_claim_policy(
+    raw: object,
+    *,
+    path: str,
+    errors: list[str],
+) -> ClaimPolicy | None:
+    if not isinstance(raw, Mapping) or "policy" not in raw:
+        return None
+    policy_path = f"{path}.policy"
+    value = raw["policy"]
+    if not isinstance(value, Mapping):
+        errors.append(f"{policy_path}: must be an object")
+        return None
+    unknown = sorted((key for key in value if key not in {"stale_after"}), key=repr)
+    if unknown:
+        errors.append(
+            f"{policy_path}: unknown field(s): {', '.join(repr(key) for key in unknown)}"
+        )
+    if "stale_after" not in value:
+        errors.append(f"{policy_path}: missing required field 'stale_after'")
+        return None
+    stale_after = value["stale_after"]
+    if not isinstance(stale_after, str) or not stale_after.strip():
+        errors.append(f"{policy_path}.stale_after: must be a non-empty RFC3339 string")
+        return None
+    try:
+        return ClaimPolicy(stale_after=stale_after, location=policy_path)
+    except ValueError as exc:
+        errors.append(f"{policy_path}.stale_after: {exc}")
+        return None
 
 
 def _validate_registry_entries(
@@ -1250,7 +1359,13 @@ def _validate_claim_reviews(
     path: str,
     errors: list[str],
 ) -> tuple[ClaimReview, ...]:
-    values = _validate_envelope(raw, path=path, collection="reviews", errors=errors)
+    values = _validate_envelope(
+        raw,
+        path=path,
+        collection="reviews",
+        errors=errors,
+        extra_allowed=("policy",),
+    )
     if values is None:
         return ()
     allowed = {
@@ -1263,7 +1378,7 @@ def _validate_claim_reviews(
         "reviewed_at",
         "reviewer",
         "supersedes",
-        "mixed_grouping",
+        "mixed_group",
     }
     required = {
         "id",
@@ -1305,6 +1420,13 @@ def _validate_claim_reviews(
             entry_errors,
         )
         reviewer = _non_empty_text(value.get("reviewer"), f"{location}.reviewer", entry_errors)
+        supersedes = value.get("supersedes")
+        if supersedes is not None:
+            supersedes = _non_empty_text(supersedes, f"{location}.supersedes", entry_errors)
+        mixed_group = value.get("mixed_group", False)
+        if type(mixed_group) is not bool:
+            entry_errors.append(f"{location}.mixed_group: must be a boolean")
+            mixed_group = False
         claim_refs = _validate_string_list(
             value.get("claim_refs"),
             path=f"{location}.claim_refs",
@@ -1364,6 +1486,8 @@ def _validate_claim_reviews(
                 reviewed_at=reviewed_at,
                 reviewer=reviewer,
                 location=location,
+                supersedes=supersedes,
+                mixed_group=mixed_group,
             )
         )
     return tuple(reviews)
@@ -1522,8 +1646,14 @@ def load_registries(
     claims_path, claims_raw = loaded["claims"]
     if claims_raw is _MISSING:
         reviews: tuple[ClaimReview, ...] = ()
+        claim_policy = None
     else:
         reviews = _validate_claim_reviews(
+            claims_raw,
+            path=_path_text(claims_path),
+            errors=errors,
+        )
+        claim_policy = _validate_claim_policy(
             claims_raw,
             path=_path_text(claims_path),
             errors=errors,
@@ -1543,6 +1673,7 @@ def load_registries(
         ),
         claim_reviews=tuple(sorted(reviews, key=lambda review: (review.id, review.location))),
         overlay_root=root,
+        claim_policy=claim_policy,
     )
 
 
@@ -1559,6 +1690,7 @@ __all__ = [
     "MATCH_UNRESOLVED",
     "REGISTRY_SCHEMA_VERSION",
     "ClaimEvidence",
+    "ClaimPolicy",
     "ClaimReview",
     "ConceptEntry",
     "ConceptRegistry",

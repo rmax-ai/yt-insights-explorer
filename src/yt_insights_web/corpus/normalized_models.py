@@ -789,6 +789,7 @@ class NormalizedCorpus:
     concepts: tuple[NormalizedConcept, ...]
     index_items: tuple[NormalizedIndexItem, ...]
     warnings: tuple[str, ...]
+    overlay_state: object | None = None
 
     def __post_init__(self) -> None:
         for name, item_type in (
@@ -804,6 +805,30 @@ class NormalizedCorpus:
         if any(not isinstance(item, str) for item in warnings):
             raise _error("corpus.warnings", "must contain only strings")
         object.__setattr__(self, "warnings", warnings)
+
+    @property
+    def resolved_state(self) -> object | None:
+        """Return compiler-only overlay state, never a rendered field."""
+
+        return self.overlay_state
+
+    @property
+    def resolution_state(self) -> object | None:
+        """Compatibility alias for compiler-only resolution state."""
+
+        return self.overlay_state
+
+    @property
+    def internal_state(self) -> object | None:
+        """Compatibility alias emphasizing that overlays are not projected."""
+
+        return self.overlay_state
+
+    @property
+    def overlays(self) -> object | None:
+        """Compatibility alias for the compiler-only overlay state."""
+
+        return self.overlay_state
 
 
 SourceProvenance = Provenance

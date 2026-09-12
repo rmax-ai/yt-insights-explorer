@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from .corpus.registries import OverlayValidationError
 from .derive import derive_claims, derive_ideas, derive_trends
 from .graph import build_concept_graph
 from .load import CorpusValidationError, load_corpus
@@ -162,8 +163,10 @@ def build_site(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         loaded = load_corpus(source_root)
-        normalized = normalize_corpus(loaded)
-    except CorpusValidationError as exc:
+        # The producer checkout owns all overlays.  The compiler consumes this
+        # root while the normalized compatibility projection stays unchanged.
+        normalized = normalize_corpus(loaded, overlay_root=source_root)
+    except (CorpusValidationError, OverlayValidationError) as exc:
         raise BuildError(str(exc)) from exc
     if publication_mode == "public" and not acknowledge_private_unreviewed:
         if any(

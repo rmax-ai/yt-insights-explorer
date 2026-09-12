@@ -137,6 +137,34 @@ video pages.
 The generated JSON contract is documented in
 [`docs/data-contract.md`](docs/data-contract.md).
 
+## Overlay inputs
+
+The compiler discovers optional curation overlays relative to the source
+checkout, not relative to the generated site:
+
+```text
+<source-root>/corpus/concepts.yml
+<source-root>/corpus/topics.yml
+<source-root>/corpus/projects.yml
+<source-root>/corpus/claim-verification.json
+```
+
+Missing overlay files mean that optional enrichment is absent. Empty,
+schema-versioned documents are valid and mean that the corresponding overlay
+is intentionally empty. In both cases the legacy build remains byte-identical.
+Raw labels, source locations, and unresolved status are retained internally;
+the current build projection does not expose resolved overlay fields.
+
+Overlay application is deterministic: concepts and topics are resolved first,
+projects second, and claim reviews last. Present-but-malformed documents fail
+closed with the overlay path, entry or review ID, and occurrence that caused
+the error. This includes unsupported versions, malformed envelopes, duplicate
+IDs, dangling claim references, invalid supersession graphs, conflicting active
+reviews, and fingerprint mismatches. Unknown labels and absent review entries
+are optional enrichment and remain unresolved rather than aborting unrelated
+records. Claim staleness is derived only from the committed
+`claim-verification.json` policy cutoff, never from the build clock.
+
 ## Development notes
 
 The runtime site is dependency-free vanilla JavaScript. Python owns

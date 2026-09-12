@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from .corpus import compiler
@@ -195,10 +196,22 @@ def _project_section(
     return projected
 
 
-def normalize_corpus(corpus: LoadedCorpus) -> NormalizedCorpus:
-    """Compile V1 records and return the unchanged public dictionary contract."""
+def normalize_corpus(
+    corpus: LoadedCorpus,
+    overlays: object | None = None,
+    *,
+    overlay_root: str | Path | None = None,
+) -> NormalizedCorpus:
+    """Compile V1 records and return the unchanged public dictionary contract.
 
-    compiled = compiler.compile_corpus(corpus.videos)
+    ``overlays`` and ``overlay_root`` are internal compiler inputs.  They are
+    optional so existing direct callers retain the pre-overlay call shape.
+    """
+
+    if overlays is not None and overlay_root is not None:
+        raise TypeError("normalize_corpus accepts overlays or overlay_root, not both")
+    compiler_overlays = overlay_root if overlay_root is not None else overlays
+    compiled = compiler.compile_corpus(corpus.videos, overlays=compiler_overlays)
     compiled_index_items = {item.video_id: item for item in compiled.index_items}
     raw_videos = {video.video_id: video for video in corpus.videos}
     concept_display: dict[str, str] = {}
