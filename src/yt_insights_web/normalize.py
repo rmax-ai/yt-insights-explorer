@@ -1,4 +1,10 @@
-"""Turn validated source artifacts into the stable public data contract."""
+"""Turn validated source artifacts into the stable public data contract.
+
+``normalize_corpus()`` is the compatibility façade and the documented public
+compiler entry point.  It invokes the pure ``corpus.compiler`` first, then
+projects the typed result back to the dictionary contract consumed by the
+existing derive and render modules.
+"""
 
 from __future__ import annotations
 
@@ -6,10 +12,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from .corpus import compiler
 from .frontmatter import render_markdown
 from .load import LoadedCorpus
 from .models import INSIGHT_SECTIONS
-from .slug import canonical_text, concept_id, concept_slug, item_id, video_slug
+from .slug import canonical_text, concept_id, concept_slug, video_slug
 
 
 @dataclass(frozen=True)
@@ -64,10 +71,8 @@ def _quote(value: Any) -> dict[str, Any]:
     }
 
 
-def _canonical_tag_names(raw_video: Any) -> list[str]:
-    values = list(raw_video.frontmatter.get("tags") or []) + list(
-        raw_video.insights.get("tags") or []
-    )
+def _canonical_tag_names(compiled_video: Any) -> list[str]:
+    values = [label.label for label in compiled_video.labels]
     grouped: dict[str, list[str]] = {}
     for value in values:
         display = " ".join(value.split())
@@ -76,32 +81,126 @@ def _canonical_tag_names(raw_video: Any) -> list[str]:
     return [min(values, key=lambda value: (value.casefold(), value)) for values in grouped.values()]
 
 
-def _item(section: str, index: int, video_id: str, raw: dict[str, Any]) -> dict[str, Any]:
-    result = dict(raw)
-    result["id"] = item_id(video_id, section, index)
-    result["source_index"] = index
+def _project_evidence(value: Any, legacy_value: Any = None) -> dict[str, Any]:
+    if legacy_value is not None:
+        return _quote(legacy_value)
+    return {
+        "text": value.text,
+        "timestamp_seconds": value.timestamp_seconds,
+        "source_url": value.source_url,
+    }
+
+
+def _project_item(item: Any, values: dict[str, Any]) -> dict[str, Any]:
+    result = dict(values)
+    result["id"] = item.id
+    result["source_index"] = item.source_index
     return result
 
 
-def _normalize_section(
-    section: str, values: list[dict[str, Any]], video_id: str
+def _project_section(
+    section: str, values: tuple[Any, ...], legacy_values: tuple[Any, ...]
 ) -> list[dict[str, Any]]:
-    normalized: list[dict[str, Any]] = []
-    for index, raw in enumerate(values):
-        result = _item(section, index, video_id, raw)
+    projected: list[dict[str, Any]] = []
+    for item, legacy_item in zip(values, legacy_values, strict=True):
         if section in {"core_insights", "deep_dives"}:
-            result["evidence_quotes"] = [_quote(quote) for quote in raw["evidence_quotes"]]
+            fields = {
+                "evidence_quotes": [
+                    _project_evidence(quote, legacy_quote)
+                    for quote, legacy_quote in zip(
+                        item.evidence,
+                        legacy_item.evidence_quotes,
+                        strict=True,
+                    )
+                ],
+            }
+            if section == "core_insights":
+                fields.update(
+                    {
+                        "insight": item.insight,
+                        "type": item.type,
+                        "why_it_matters": item.why_it_matters,
+                        "generalization": item.generalization,
+                        "evidence_strength": item.evidence_strength,
+                        "novelty": item.novelty,
+                    }
+                )
+            else:
+                fields.update(
+                    {
+                        "topic": item.topic,
+                        "research_question": item.research_question,
+                        "why": item.why,
+                        "trigger_insight": item.trigger_insight,
+                        "priority": item.priority,
+                    }
+                )
         elif section == "tradeoffs_and_failure_modes":
-            result["evidence_quote"] = _quote(raw["evidence_quote"])
+            fields = {
+                "topic": item.topic,
+                "benefit": item.benefit,
+                "cost_or_risk": item.cost_or_risk,
+                "evidence_quote": _project_evidence(item.evidence, legacy_item.evidence_quote),
+            }
         elif section == "key_claims":
-            result["verification_status"] = "needed" if raw["verification_needed"] else "not-needed"
-        normalized.append(result)
-    return normalized
+            fields = {
+                "claim": item.claim,
+                "claim_type": item.claim_type,
+                "evidence": _project_evidence(item.evidence, legacy_item.evidence)["text"],
+                "verification_needed": item.verification_requested,
+                "verification_question": item.verification_question,
+                "verification_status": (
+                    "needed" if item.verification_requested else "not-needed"
+                ),
+            }
+        elif section == "article_ideas":
+            fields = {
+                "title": item.title,
+                "thesis": item.thesis,
+                "angle": item.angle,
+                "based_on": item.based_on,
+                "audience": item.audience,
+            }
+        elif section == "project_ideas":
+            fields = {
+                "name": item.name,
+                "hypothesis": item.hypothesis,
+                "poc": item.poc,
+                "measurement": item.measurement,
+                "based_on": item.based_on,
+                "fits": item.raw_fit,
+            }
+        elif section == "architectural_implications":
+            fields = {
+                "observation": item.observation,
+                "before": item.before,
+                "after": item.after,
+                "consequence": item.consequence,
+            }
+        elif section == "open_questions":
+            fields = {
+                "question": item.question,
+                "why_unresolved": item.why_unresolved,
+                "research_direction": item.research_direction,
+            }
+        elif section == "connections":
+            fields = {
+                "concept": item.concept,
+                "connects_to": item.connects_to,
+                "relationship": item.relationship,
+            }
+        else:
+            raise ValueError(f"unknown insight section: {section}")
+        projected.append(_project_item(item, fields))
+    return projected
 
 
 def normalize_corpus(corpus: LoadedCorpus) -> NormalizedCorpus:
-    """Return normalized dictionaries with no source checkout paths."""
+    """Compile V1 records and return the unchanged public dictionary contract."""
 
+    compiled = compiler.compile_corpus(corpus.videos)
+    compiled_index_items = {item.video_id: item for item in compiled.index_items}
+    raw_videos = {video.video_id: video for video in corpus.videos}
     concept_display: dict[str, str] = {}
     tag_video_ids: dict[str, set[str]] = {}
     connection_video_ids: dict[str, set[str]] = {}
@@ -109,78 +208,85 @@ def normalize_corpus(corpus: LoadedCorpus) -> NormalizedCorpus:
     normalized_videos: list[dict[str, Any]] = []
     index_items = tuple(
         {
-            "video_id": item.video_id,
-            "title": item.title,
-            "channel": item.channel,
-            "status": item.status,
-            "ingested_at": _iso(item.ingested_at),
-            "cost_usd_total": item.cost_usd_total,
+            "video_id": compiled_item.video_id if compiled_item else item.video_id,
+            "title": compiled_item.title if compiled_item else item.title,
+            "channel": compiled_item.channel if compiled_item else item.channel,
+            "status": compiled_item.status if compiled_item else item.status,
+            "ingested_at": _iso(compiled_item.ingested_at if compiled_item else item.ingested_at),
+            "cost_usd_total": (
+                compiled_item.cost_usd_total if compiled_item else item.cost_usd_total
+            ),
         }
         for item in corpus.index_items
+        for compiled_item in (compiled_index_items.get(item.video_id),)
     )
 
-    for raw_video in corpus.videos:
-        frontmatter = raw_video.frontmatter
-        published = frontmatter["source_published"]
+    for compiled_video in compiled.videos:
         tags = []
-        for name in _canonical_tag_names(raw_video):
+        for name in _canonical_tag_names(compiled_video):
             key = canonical_text(name)
             concept_display[key] = min(
                 (concept_display.get(key, name), name),
                 key=lambda value: (value.casefold(), value),
             )
-            tag_video_ids.setdefault(key, set()).add(raw_video.video_id)
+            tag_video_ids.setdefault(key, set()).add(compiled_video.video_id)
             tags.append(key)
-        video_tag_keys[raw_video.video_id] = tags
+        video_tag_keys[compiled_video.video_id] = tags
 
-        for connection in raw_video.insights["connections"]:
-            for endpoint in (connection["concept"], connection["connects_to"]):
+        for connection in compiled_video.connections:
+            for endpoint in (connection.concept, connection.connects_to):
                 key = canonical_text(endpoint)
                 concept_display[key] = min(
                     (concept_display.get(key, endpoint), endpoint),
                     key=lambda value: (value.casefold(), value),
                 )
-                connection_video_ids.setdefault(key, set()).add(raw_video.video_id)
-        slug = video_slug(raw_video.title, raw_video.video_id)
+                connection_video_ids.setdefault(key, set()).add(compiled_video.video_id)
+        source = compiled_video.source
+        document = compiled_video.document
+        summary = compiled_video.summary
+        slug = video_slug(compiled_video.title, compiled_video.video_id)
         video = {
             "schema_version": 1,
-            "video_id": raw_video.video_id,
+            "video_id": compiled_video.video_id,
             "slug": slug,
             "url": f"videos/{slug}/index.html",
-            "title": raw_video.title,
-            "channel": raw_video.channel,
-            "status": raw_video.index.status,
-            "ingested_at": _iso(raw_video.index.ingested_at),
-            "cost_usd_total": raw_video.index.cost_usd_total,
+            "title": compiled_video.title,
+            "channel": compiled_video.channel,
+            "status": compiled_video.status,
+            "ingested_at": _iso(compiled_video.ingested_at),
+            "cost_usd_total": compiled_index_items[compiled_video.video_id].cost_usd_total,
             "source": {
-                "type": frontmatter["source_type"],
-                "uri": frontmatter["source_uri"],
-                "title": frontmatter["source_title"],
-                "author": frontmatter["source_author"],
-                "published_at": _iso(published),
-                "published_date": _date(published),
-                "published_month": _month(published),
+                "type": source.source_type,
+                "uri": source.uri,
+                "title": source.title,
+                "author": source.author,
+                "published_at": _iso(source.published_at),
+                "published_date": _date(source.published_at),
+                "published_month": _month(source.published_at),
             },
             "document": {
-                "type": frontmatter["type"],
-                "description": frontmatter["description"],
-                "urn": frontmatter["id"],
-                "status": frontmatter["status"],
-                "confidence": frontmatter["confidence"],
-                "visibility": frontmatter["visibility"],
-                "captured_at": _iso(frontmatter["captured_at"]),
-                "generated_by": frontmatter["generated_by"],
-                "review_status": frontmatter["review_status"],
+                "type": document.type,
+                "description": document.description,
+                "urn": document.urn,
+                "status": document.status,
+                "confidence": document.confidence,
+                "visibility": document.visibility,
+                "captured_at": _iso(document.captured_at),
+                "generated_by": document.generated_by,
+                "review_status": document.review_status,
             },
             "summary": {
-                "markdown": raw_video.summary_markdown,
-                "html": render_markdown(raw_video.summary_markdown),
+                "markdown": summary.markdown,
+                "html": render_markdown(summary.markdown),
             },
             "tags": [],
         }
+        raw_video = raw_videos[compiled_video.video_id]
         for section in INSIGHT_SECTIONS:
-            video[section] = _normalize_section(
-                section, raw_video.insights[section], raw_video.video_id
+            video[section] = _project_section(
+                section,
+                getattr(compiled_video, section),
+                getattr(raw_video.insights, section),
             )
         normalized_videos.append(video)
 

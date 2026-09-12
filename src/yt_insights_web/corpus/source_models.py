@@ -9,7 +9,7 @@ into the compiler boundary.
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import IntEnum
 from math import isfinite
@@ -161,9 +161,9 @@ def _schema_version(value: object, path: str) -> int | None:
     if value is None:
         return None
     if isinstance(value, bool) or not isinstance(value, int):
-        raise _error(path, "must be schema version 2 when present")
-    if value != 2:
-        raise _error(path, "must be explicit schema version 2 when present")
+        raise _error(path, "must be explicit schema version 1 or 2 when present")
+    if value not in (1, 2):
+        raise _error(path, "must be explicit schema version 1 or 2 when present")
     return value
 
 
@@ -934,6 +934,13 @@ class RawVideo:
             if isinstance(insights, SourceInsights)
             else SourceInsights.from_mapping(insights)
         )
+        schema_version = typed_insights.schema_version
+        if schema_version == int(SourceVersion.V1):
+            # Explicit V1 and absent schema_version have one canonical source
+            # representation.  Raw V1 records retain no redundant version
+            # marker after per-artifact detection has selected V1.
+            typed_insights = replace(typed_insights, schema_version=None)
+            schema_version = None
         return cls(
             index=index,
             frontmatter=(
@@ -945,7 +952,7 @@ class RawVideo:
             insights=typed_insights,
             summary_path=summary_path,
             insights_path=insights_path,
-            schema_version=typed_insights.schema_version,
+            schema_version=schema_version,
         )
 
 
@@ -955,6 +962,14 @@ class V1SourceRecord(RawVideo):
 
     def __post_init__(self) -> None:
         RawVideo.__post_init__(self)
+        if self.schema_version == int(SourceVersion.V1):
+            object.__setattr__(self, "schema_version", None)
+        if self.insights.schema_version == int(SourceVersion.V1):
+            object.__setattr__(
+                self,
+                "insights",
+                replace(self.insights, schema_version=None),
+            )
         if self.schema_version is not None or self.insights.schema_version is not None:
             raise _error(
                 "v1_source_record.schema_version",

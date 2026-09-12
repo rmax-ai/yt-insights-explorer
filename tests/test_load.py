@@ -142,3 +142,36 @@ def test_skipped_and_failed_records_are_not_loaded(tmp_path: Path) -> None:
         "sL3QPAYoB6s",
         "N5RPTlRR9eY",
     }
+
+
+def test_explicit_schema_version_one_uses_the_public_v1_load_path(tmp_path: Path) -> None:
+    source = copy_fixture(tmp_path)
+    index = json.loads((source / "index.json").read_text(encoding="utf-8"))
+    insights_path = source / index["items"][0]["artifacts"]["insights"]
+    insights = json.loads(insights_path.read_text(encoding="utf-8"))
+    insights["schema_version"] = 1
+    insights_path.write_text(json.dumps(insights), encoding="utf-8")
+
+    loaded = load_corpus(source)
+
+    assert loaded.videos[0].schema_version is None
+    assert loaded.videos[0].source_version.value == 1
+
+
+def test_absolute_artifact_paths_are_normalized_to_relative_paths(tmp_path: Path) -> None:
+    source = copy_fixture(tmp_path)
+    index_path = source / "index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    item = index["items"][0]
+    item["artifacts"]["summary"] = str(
+        (source / item["artifacts"]["summary"]).resolve()
+    )
+    item["artifacts"]["insights"] = str(
+        (source / item["artifacts"]["insights"]).resolve()
+    )
+    index_path.write_text(json.dumps(index), encoding="utf-8")
+
+    loaded = load_corpus(source)
+
+    assert loaded.videos[0].summary_path.startswith("artifacts/")
+    assert loaded.videos[0].insights_path.startswith("artifacts/")

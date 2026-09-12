@@ -1,4 +1,10 @@
-"""Read and validate the source checkout without retaining host paths."""
+"""Read and validate the source checkout without retaining host paths.
+
+Version detection is per machine-readable artifact.  A present
+``schema_version`` is authoritative; an absent value means V1.  Detection
+always happens before V1 field validation so an unsupported artifact cannot
+silently pass through the permissive legacy validator.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +15,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from .corpus.source_models import SourceModelError, V1SourceRecord
 from .frontmatter import FrontMatterError, parse_summary
 from .models import (
     CLAIM_TYPES,
@@ -138,6 +145,20 @@ def _read_json(path: Path, location: str, errors: list[str]) -> Any | None:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         errors.append(f"{location}: cannot read JSON: {exc}")
         return None
+
+
+def _detect_artifact_version(data: Any, location: str, errors: list[str]) -> int | None:
+    """Select one version for one artifact before running V1 validation."""
+
+    if not isinstance(data, dict) or "schema_version" not in data:
+        return 1
+    version = data["schema_version"]
+    if isinstance(version, bool) or not isinstance(version, int) or version != 1:
+        errors.append(
+            f"{location}: unsupported schema version {version!r}; expected numeric version 1"
+        )
+        return None
+    return version
 
 
 def _validate_quote(value: Any, location: str, errors: list[str]) -> None:
@@ -431,21 +452,35 @@ def load_corpus(source: str | Path) -> LoadedCorpus:
         except (OSError, UnicodeDecodeError, FrontMatterError) as exc:
             errors.append(f"{summary_relative}: {exc}")
             continue
+        if _detect_artifact_version(parsed.metadata, summary_relative, errors) is None:
+            continue
         _validate_frontmatter(parsed.metadata, item, summary_relative, errors, warnings)
         insights = _read_json(insights_path, insights_relative, errors)
+        if (
+            insights is not None
+            and _detect_artifact_version(insights, insights_relative, errors) is None
+        ):
+            continue
         validated = _validate_insights(insights, errors)
         if validated is None:
             continue
-        videos.append(
-            RawVideo(
-                index=item,
-                frontmatter=parsed.metadata,
-                summary_markdown=parsed.markdown,
-                insights=validated,
-                summary_path=summary_relative,
-                insights_path=insights_relative,
+        try:
+            videos.append(
+                V1SourceRecord.from_mappings(
+                    index=item,
+                    frontmatter={
+                        key: value
+                        for key, value in parsed.metadata.items()
+                        if key != "schema_version"
+                    },
+                    summary_markdown=parsed.markdown,
+                    insights=validated,
+                    summary_path=summary_relative,
+                    insights_path=insights_relative,
+                )
             )
-        )
+        except SourceModelError as exc:
+            errors.append(f"{insights_relative}: {exc}")
     if errors:
         raise CorpusValidationError(errors)
     return LoadedCorpus(source_root, tuple(index_items), tuple(videos), tuple(warnings))
