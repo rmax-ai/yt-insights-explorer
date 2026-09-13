@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from yt_insights_web import render as render_module
+from yt_insights_web.corpus.compiler import compile_corpus
+from yt_insights_web.corpus.normalized_models import EvidenceAvailability
 from yt_insights_web.derive import month_axis
 from yt_insights_web.load import load_corpus
 from yt_insights_web.normalize import normalize_corpus
@@ -11,11 +16,22 @@ from yt_insights_web.render import RenderConfig, render_site
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "corpus"
+RENDER_FIXTURE = ROOT / "tests" / "fixtures" / "render-evidence"
 
 
 def rendered_fixture(**kwargs: str) -> dict[str, str]:
     normalized = normalize_corpus(load_corpus(FIXTURE))
     return render_site(normalized, RenderConfig(**kwargs))
+
+
+def rendered_evidence_fixture() -> dict[str, str]:
+    loaded = load_corpus(RENDER_FIXTURE)
+    canonical = compile_corpus(loaded.videos, overlay_root=RENDER_FIXTURE)
+    return render_site(canonical)
+
+
+def evidence_video_html(files: dict[str, str]) -> str:
+    return files["videos/render-evidence-fixture-render-evidence-001/index.html"]
 
 
 def _legacy_timeline(concept_id: str, videos: tuple[dict, ...]) -> list[dict]:
@@ -104,3 +120,87 @@ def test_render_autoescapes_values() -> None:
 
     assert "&lt;script&gt;" in files["index.html"]
     assert '<script>alert("x")</script>' not in files["index.html"]
+
+
+def test_timestamped_evidence_renders_youtube_deep_link() -> None:
+    html = evidence_video_html(rendered_evidence_fixture())
+
+    assert (
+        'href="https://www.youtube.com/watch?v=render-evidence-001&amp;t=37s"'
+        in html
+    )
+    assert "at 37s" in html
+
+
+def test_missing_timestamp_renders_normal_source_link() -> None:
+    html = evidence_video_html(rendered_evidence_fixture())
+
+    assert (
+        'href="https://www.youtube.com/watch?v=render-evidence-001"'
+        in html
+    )
+    assert "?t=" not in html
+
+
+def test_unavailable_enrichment_does_not_drop_item() -> None:
+    html = evidence_video_html(rendered_evidence_fixture())
+
+    assert "Unavailable enrichment does not erase an insight." in html
+    assert (
+        "This &lt;insight&gt; remains present while enrichment is unavailable "
+        "&amp; auditable."
+    ) in html
+    assert "Evidence Unavailable" in html
+
+
+@pytest.mark.parametrize(
+    "availability",
+    [EvidenceAvailability.CANDIDATE, EvidenceAvailability.UNRESOLVED],
+)
+def test_fuzzy_or_unresolved_candidates_remain_untimed(availability) -> None:
+    loaded = load_corpus(RENDER_FIXTURE)
+    canonical = compile_corpus(loaded.videos, overlay_root=RENDER_FIXTURE)
+    video = canonical.videos[0]
+    insight = video.core_insights[1]
+    evidence = replace(
+        insight.evidence[0],
+        availability=availability,
+        resolution_method="summary_quote_fuzzy",
+    )
+    changed_insight = replace(insight, evidence=(evidence,))
+    changed_video = replace(video, core_insights=(video.core_insights[0], changed_insight))
+    changed_corpus = replace(canonical, videos=(changed_video,))
+
+    html = evidence_video_html(render_site(changed_corpus))
+
+    state = availability.value.title()
+    marker = f'data-evidence-availability="{availability.value}"'
+    block = html.split(marker, 1)[1].split("</figure>", 1)[0]
+    assert f"Evidence {state}" in block
+    assert "at " not in block
+    assert "?t=" not in block
+
+
+@pytest.mark.parametrize(
+    ("claim_id", "requested", "review"),
+    [
+        ("requested-verified", "Verification requested", "Ledger review: verified"),
+        ("requested-unreviewed", "Verification requested", "Ledger review: unreviewed"),
+        ("unrequested-verified", "Verification not requested", "Ledger review: verified"),
+        ("unrequested-unreviewed", "Verification not requested", "Ledger review: unreviewed"),
+    ],
+)
+def test_claim_request_and_review_states_render_separately(
+    claim_id: str,
+    requested: str,
+    review: str,
+) -> None:
+    files = rendered_evidence_fixture()
+    video_html = evidence_video_html(files)
+    claims_html = files["claims/index.html"]
+    anchor = f'id="claim-v1:render-evidence-001:{claim_id}"'
+
+    for html in (claims_html, video_html):
+        card = html.split(anchor, 1)[1].split("</article>", 1)[0]
+        assert requested in card
+        assert review in card

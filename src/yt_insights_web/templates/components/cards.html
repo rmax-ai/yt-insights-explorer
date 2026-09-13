@@ -22,7 +22,7 @@
   </article>
 {%- endmacro %}
 
-{% macro insight_card(insight, video) -%}
+{% macro insight_card(insight, video, render_states=false) -%}
   <article class="card insight-block" id="{{ insight.id }}">
     <header class="insight-header">
       <span class="type-label type-{{ insight.type }}"><span class="type-glyph" aria-hidden="true">{{ glyphs[insight.type] }}</span>{{ insight.type|replace("_", " ")|title }}</span>
@@ -35,7 +35,7 @@
     {% if insight.evidence_quotes %}
       <div class="quote-stack">
         {% for quote in insight.evidence_quotes %}
-          {{ quote_block(quote, video) }}
+          {{ quote_block(quote, video, render_states) }}
         {% endfor %}
       </div>
     {% endif %}
@@ -44,7 +44,22 @@
 {%- endmacro %}
 
 
-{% macro quote_block(quote, video) -%}
+{% macro evidence_block(evidence, video) -%}
+  <figure class="quote-block" data-evidence-availability="{{ evidence.availability or evidence.resolution_status }}">
+    <blockquote>{{ evidence.text }}</blockquote>
+    <figcaption>
+      {% if evidence.timestamp_seconds is not none %}<span>at {{ evidence.timestamp_label or evidence.timestamp_seconds }}s</span>{% endif %}
+      <a class="source-link" href="{{ evidence.source_url or video.source.uri }}">Open source video <span aria-hidden="true">↗</span></a>
+      <span class="status-badge evidence-state">Evidence {{ (evidence.availability or evidence.resolution_status)|replace("-", " ")|title }}</span>
+      {% if evidence.resolution_method %}<span class="status-badge">Resolution: {{ evidence.resolution_method|replace("_", " ") }}</span>{% endif %}
+    </figcaption>
+  </figure>
+{%- endmacro %}
+
+{% macro quote_block(quote, video, render_states=false) -%}
+  {% if render_states %}
+    {{ evidence_block(quote, video) }}
+  {% else %}
   <figure class="quote-block">
     <blockquote>{{ quote.text }}</blockquote>
     <figcaption>
@@ -52,6 +67,7 @@
       <a class="source-link" href="{{ quote.source_url or video.source.uri }}">Open source video <span aria-hidden="true">↗</span></a>
     </figcaption>
   </figure>
+  {% endif %}
 {%- endmacro %}
 
 {% macro idea_card(item, video) -%}
@@ -67,18 +83,27 @@
   </article>
 {%- endmacro %}
 
-{% macro claim_card(claim, video) -%}
-  <article class="card claim-card" id="{{ claim.id }}" data-verification="{{ claim.verification_status }}" data-claim-type="{{ claim.claim_type }}">
+{% macro claim_card(claim, video, render_states=false, include_filter_data=true) -%}
+  <article class="card claim-card" id="{{ claim.id }}"{% if include_filter_data %} data-verification="{{ claim.verification_status }}" data-claim-type="{{ claim.claim_type }}"{% endif %}>
     <div class="card-meta">
       <span class="result-kind">{{ claim.claim_type }}</span>
-      {% if claim.verification_status == "needed" %}
-        <span class="status-badge status-needed">Verification needed</span>
+      {% if render_states %}
+        {% if claim.verification_requested %}
+          <span class="status-badge status-needed">Verification requested</span>
+        {% else %}
+          <span class="status-badge">Verification not requested</span>
+        {% endif %}
+        <span class="status-badge">Ledger review: {{ claim.review_status }}</span>
       {% else %}
-        <span class="status-badge">Verification not requested</span>
+        {% if claim.verification_status == "needed" %}
+          <span class="status-badge status-needed">Verification needed</span>
+        {% else %}
+          <span class="status-badge">Verification not requested</span>
+        {% endif %}
       {% endif %}
     </div>
     <h3>{{ claim.claim }}</h3>
-    <div class="field-pair"><strong>Evidence</strong><p>{{ claim.evidence }}</p></div>
+    <div class="field-pair"><strong>Evidence</strong>{% if render_states %}{{ evidence_block(claim.evidence, video) }}{% else %}<p>{{ claim.evidence }}</p>{% endif %}</div>
     {% if claim.verification_question %}<div class="field-pair"><strong>Question</strong><p>{{ claim.verification_question }}</p></div>{% endif %}
     {{ provenance(video) }}
   </article>

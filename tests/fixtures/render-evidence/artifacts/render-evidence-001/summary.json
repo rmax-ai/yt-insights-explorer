@@ -1,0 +1,58 @@
+{
+  "schema_version": 2,
+  "artifact_kind": "video-summary",
+  "video_id": "render-evidence-001",
+  "evidence": [
+    {
+      "id": "evidence-v1:render-evidence-001:summary-timestamped",
+      "text": "A timestamped source quote stays linked to its exact source moment.",
+      "timestamp_seconds": 37,
+      "source_url": "https://www.youtube.com/watch?v=render-evidence-001&t=37s",
+      "provenance": {
+        "origin": "summary_quote",
+        "timestamp_method": "recovered-exact-match"
+      }
+    },
+    {
+      "id": "evidence-v1:render-evidence-001:summary-unavailable",
+      "text": "Summary enrichment is unavailable.",
+      "timestamp_seconds": null,
+      "source_url": null,
+      "provenance": {
+        "origin": "summary_quote",
+        "timestamp_method": "none"
+      }
+    }
+  ],
+  "overview": {
+    "title": "Render Evidence Fixture",
+    "speaker": "Synthetic Speaker",
+    "channel": "Synthetic Channel",
+    "main_topic": "Evidence rendering",
+    "executive_summary": "Evidence can be useful even when timing enrichment is unavailable.",
+    "purpose": "Exercise the canonical rendering contract."
+  },
+  "topic_map": [],
+  "key_points": [],
+  "frameworks": [],
+  "examples": [],
+  "takeaways": {
+    "immediate": [],
+    "strategic": [],
+    "questions_to_investigate": []
+  },
+  "claims_to_verify": [],
+  "quotes": [
+    {
+      "id": "item-v1:render-evidence-001:summary-quote",
+      "text": "A timestamped source quote stays linked to its exact source moment.",
+      "timestamp_seconds": 37,
+      "timestamp_provenance": "recovered-exact-match"
+    }
+  ],
+  "compressed": {
+    "bullets": [],
+    "keywords": [],
+    "core_insight": "Evidence state should be explicit."
+  }
+}

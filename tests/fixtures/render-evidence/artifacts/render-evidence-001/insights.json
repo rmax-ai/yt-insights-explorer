@@ -1,0 +1,114 @@
+{
+  "schema_version": 2,
+  "artifact_kind": "video-insights",
+  "video_id": "render-evidence-001",
+  "evidence": [
+    {
+      "id": "evidence-v1:render-evidence-001:timestamped",
+      "text": "A timestamped source quote stays linked to its exact source moment.",
+      "timestamp_seconds": 37,
+      "source_url": "https://www.youtube.com/watch?v=render-evidence-001&t=37s",
+      "provenance": {
+        "origin": "summary_quote",
+        "timestamp_method": "recovered-exact-match"
+      }
+    },
+    {
+      "id": "evidence-v1:render-evidence-001:untimed",
+      "text": "An untimed source quote keeps its ordinary source link.",
+      "timestamp_seconds": null,
+      "source_url": null,
+      "provenance": {
+        "origin": "insights_extraction",
+        "timestamp_method": "none"
+      }
+    },
+    {
+      "id": "evidence-v1:render-evidence-001:unavailable",
+      "text": "This <insight> remains present while enrichment is unavailable & auditable.",
+      "timestamp_seconds": null,
+      "source_url": null,
+      "provenance": {
+        "origin": "insights_extraction",
+        "timestamp_method": "none"
+      }
+    }
+  ],
+  "topics": [],
+  "concept_candidates": [],
+  "core_insights": [
+    {
+      "id": "item-v1:render-evidence-001:core-timestamped",
+      "evidence_refs": [
+        "evidence-v1:render-evidence-001:timestamped"
+      ],
+      "insight": "Timestamped evidence links to the exact source moment.",
+      "type": "architecture",
+      "why_it_matters": "Readers can inspect the source without losing the extracted context.",
+      "generalization": "Evidence URLs should preserve compiler-owned provenance.",
+      "evidence_strength": "strong",
+      "novelty": "high"
+    },
+    {
+      "id": "item-v1:render-evidence-001:core-unavailable",
+      "evidence_refs": [
+        "evidence-v1:render-evidence-001:unavailable"
+      ],
+      "insight": "Unavailable enrichment does not erase an insight.",
+      "type": "practice",
+      "why_it_matters": "The extracted insight and its source text remain useful.",
+      "generalization": "Missing optional enrichment should be visible rather than fabricated.",
+      "evidence_strength": "moderate",
+      "novelty": "medium"
+    }
+  ],
+  "deep_dives": [],
+  "article_ideas": [],
+  "project_ideas": [],
+  "architectural_implications": [],
+  "tradeoffs_and_failure_modes": [],
+  "open_questions": [],
+  "key_claims": [
+    {
+      "id": "claim-v1:render-evidence-001:requested-verified",
+      "evidence_refs": [
+        "evidence-v1:render-evidence-001:timestamped"
+      ],
+      "claim": "Requested claim with a verified review.",
+      "claim_type": "factual",
+      "verification_requested": true,
+      "verification_question": "Was the exact source moment checked?"
+    },
+    {
+      "id": "claim-v1:render-evidence-001:requested-unreviewed",
+      "evidence_refs": [
+        "evidence-v1:render-evidence-001:untimed"
+      ],
+      "claim": "Requested claim without a review.",
+      "claim_type": "factual",
+      "verification_requested": true,
+      "verification_question": "Which source should review?"
+    },
+    {
+      "id": "claim-v1:render-evidence-001:unrequested-verified",
+      "evidence_refs": [
+        "evidence-v1:render-evidence-001:timestamped"
+      ],
+      "claim": "Unrequested claim with a verified review.",
+      "claim_type": "opinion",
+      "verification_requested": false,
+      "verification_question": null
+    },
+    {
+      "id": "claim-v1:render-evidence-001:unrequested-unreviewed",
+      "evidence_refs": [
+        "evidence-v1:render-evidence-001:unavailable"
+      ],
+      "claim": "Unrequested claim without a review.",
+      "claim_type": "opinion",
+      "verification_requested": false,
+      "verification_question": null
+    }
+  ],
+  "connections": []
+}

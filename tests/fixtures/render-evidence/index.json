@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "video_id": "render-evidence-001",
+      "title": "Render Evidence Fixture",
+      "channel": "Synthetic Channel",
+      "status": "analyzed",
+      "ingested_at": "2026-09-13T00:00:00Z",
+      "artifacts": {
+        "transcript": null,
+        "summary": "artifacts/render-evidence-001/summary.md",
+        "insights": "artifacts/render-evidence-001/insights.json"
+      },
+      "cost_usd_total": null
+    }
+  ]
+}

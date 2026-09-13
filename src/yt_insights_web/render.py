@@ -4,17 +4,28 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import UTC
 from html import escape
 from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from .corpus.compiler import OverlayState
+from .corpus.normalized_models import (
+    Evidence,
+    NormalizedVideo,
+)
+from .corpus.normalized_models import NormalizedCorpus as CanonicalCorpus
+from .corpus.registries import Registries
 from .derive import derive_claims, derive_ideas, derive_trends, month_axis
+from .frontmatter import render_markdown
 from .graph import build_concept_graph
 from .models import CLAIM_TYPES, INSIGHT_TYPES, PROJECT_FITS
 from .normalize import NormalizedCorpus
 from .search import KIND_ORDER, build_search_records
+from .slug import concept_id as legacy_concept_id
+from .slug import video_slug
 from .urls import asset_url, normalize_base_path, page_url, relative_url
 
 
@@ -65,6 +76,263 @@ SECTION_LABELS = {
     "key_claims": "Key claims",
     "connections": "Connections",
 }
+
+
+def _timestamp_label(value: float | None) -> str | None:
+    if value is None:
+        return None
+    return str(int(value)) if float(value).is_integer() else str(value)
+
+
+def _canonical_evidence(value: Evidence) -> dict[str, Any]:
+    """Project one canonical evidence value into the template contract."""
+
+    return {
+        "id": value.content_id,
+        "text": value.text,
+        "timestamp_seconds": value.timestamp_seconds,
+        "timestamp_label": _timestamp_label(value.timestamp_seconds),
+        # The compiler/evidence adapter owns this URL.  Rendering only
+        # consumes it verbatim and never appends a timestamp parameter.
+        "source_url": value.source_url,
+        "availability": value.availability.value,
+        "resolution_method": value.resolution_method,
+    }
+
+
+def _canonical_source(
+    corpus: CanonicalCorpus,
+    video: NormalizedVideo,
+) -> tuple[Registries, Any]:
+    state = corpus.overlay_state if isinstance(corpus.overlay_state, OverlayState) else None
+    if state is not None:
+        return state.registries, state.by_video_id[video.video_id].concepts
+    registries = Registries()
+    return registries, registries.resolve_source_record(video)
+
+
+def _canonical_video_view(
+    corpus: CanonicalCorpus,
+    video: NormalizedVideo,
+    claim_rows: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Build the renderer view for a canonical video without changing models."""
+
+    registries, resolved_source = _canonical_source(corpus, video)
+    del registries
+    index_item = next(
+        (item for item in corpus.index_items if item.video_id == video.video_id),
+        None,
+    )
+    published_at = video.source.published_at.astimezone(UTC)
+    view: dict[str, Any] = {
+        "schema_version": 1,
+        "video_id": video.video_id,
+        "slug": video_slug(video.title, video.video_id),
+        "url": f"videos/{video_slug(video.title, video.video_id)}/index.html",
+        "title": video.title,
+        "channel": video.channel,
+        "status": video.status,
+        "ingested_at": video.ingested_at.astimezone(UTC).isoformat().replace("+00:00", "Z"),
+        "cost_usd_total": index_item.cost_usd_total if index_item is not None else None,
+        "source": {
+            "type": video.source.source_type,
+            "uri": video.source.uri,
+            "title": video.source.title,
+            "author": video.source.author,
+            "published_at": published_at.isoformat().replace("+00:00", "Z"),
+            "published_date": published_at.date().isoformat(),
+            "published_month": published_at.strftime("%Y-%m"),
+        },
+        "document": {
+            "type": video.document.type,
+            "description": video.document.description,
+            "urn": video.document.urn,
+            "status": video.document.status,
+            "confidence": video.document.confidence,
+            "visibility": video.document.visibility,
+            "captured_at": video.document.captured_at.astimezone(UTC)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "generated_by": video.document.generated_by,
+            "review_status": video.document.review_status,
+        },
+        "summary": {
+            "markdown": video.summary.markdown,
+            "html": render_markdown(video.summary.markdown),
+        },
+        "tags": [],
+    }
+    seen_tags: set[tuple[str, str]] = set()
+    labels = resolved_source.labels
+    if video.provenance.version == 2:
+        labels = tuple(label for label in labels if "::topics[" not in label.location)
+    for label in labels:
+        tag_key = (label.id, label.name)
+        if tag_key in seen_tags:
+            continue
+        seen_tags.add(tag_key)
+        view["tags"].append(
+            {
+                "name": label.name,
+                "concept_id": label.id,
+                "url": label.url,
+            }
+        )
+
+    view["core_insights"] = [
+        {
+            "id": item.id,
+            "source_index": item.source_index,
+            "insight": item.insight,
+            "type": item.type,
+            "why_it_matters": item.why_it_matters,
+            "generalization": item.generalization,
+            "evidence_quotes": [_canonical_evidence(value) for value in item.evidence],
+            "evidence_strength": item.evidence_strength,
+            "novelty": item.novelty,
+        }
+        for item in video.core_insights
+    ]
+    view["deep_dives"] = [
+        {
+            "id": item.id,
+            "source_index": item.source_index,
+            "topic": item.topic,
+            "research_question": item.research_question,
+            "why": item.why,
+            "trigger_insight": item.trigger_insight,
+            "evidence_quotes": [_canonical_evidence(value) for value in item.evidence],
+            "priority": item.priority,
+        }
+        for item in video.deep_dives
+    ]
+    view["article_ideas"] = [
+        {
+            "id": item.id,
+            "source_index": item.source_index,
+            "title": item.title,
+            "thesis": item.thesis,
+            "angle": item.angle,
+            "based_on": item.based_on,
+            "audience": item.audience,
+        }
+        for item in video.article_ideas
+    ]
+    view["project_ideas"] = [
+        {
+            "id": item.id,
+            "source_index": item.source_index,
+            "name": item.name,
+            "hypothesis": item.hypothesis,
+            "poc": item.poc,
+            "measurement": item.measurement,
+            "based_on": item.based_on,
+            "raw_fit": item.raw_fit,
+            "fits": item.raw_fit,
+        }
+        for item in video.project_ideas
+    ]
+    view["architectural_implications"] = [
+        {
+            "id": item.id,
+            "source_index": item.source_index,
+            "observation": item.observation,
+            "before": item.before,
+            "after": item.after,
+            "consequence": item.consequence,
+        }
+        for item in video.architectural_implications
+    ]
+    view["tradeoffs_and_failure_modes"] = [
+        {
+            "id": item.id,
+            "source_index": item.source_index,
+            "topic": item.topic,
+            "benefit": item.benefit,
+            "cost_or_risk": item.cost_or_risk,
+            "evidence_quote": _canonical_evidence(item.evidence),
+        }
+        for item in video.tradeoffs_and_failure_modes
+    ]
+    view["open_questions"] = [
+        {
+            "id": item.id,
+            "source_index": item.source_index,
+            "question": item.question,
+            "why_unresolved": item.why_unresolved,
+            "research_direction": item.research_direction,
+        }
+        for item in video.open_questions
+    ]
+    view["key_claims"] = []
+    for item in video.key_claims:
+        claim = dict(claim_rows.get(item.id, {}))
+        claim.update(
+            {
+                "id": item.id,
+                "source_index": item.source_index,
+                "claim": item.claim,
+                "claim_type": item.claim_type,
+                "evidence": _canonical_evidence(item.evidence),
+                "verification_requested": item.verification_requested,
+                "verification_needed": item.verification_requested,
+                "verification_status": (
+                    "needed" if item.verification_requested else "not-needed"
+                ),
+                "verification_question": item.verification_question,
+                "review_status": claim.get("review_status") or "unreviewed",
+                "ledger_review_state": claim.get("ledger_review_state") or "unreviewed",
+            }
+        )
+        view["key_claims"].append(claim)
+    view["connections"] = [
+        {
+            "id": item.id,
+            "source_index": item.source_index,
+            "concept": item.concept,
+            "connects_to": item.connects_to,
+            "relationship": item.relationship,
+            "concept_id": resolved.concept.id,
+            "connects_to_id": resolved.connects_to.id,
+        }
+        for item, resolved in zip(
+            video.connections,
+            resolved_source.connections,
+            strict=True,
+        )
+    ]
+    return view
+
+
+def _canonical_counts(
+    corpus: CanonicalCorpus,
+    ideas: dict[str, Any],
+    claims: dict[str, Any],
+    concept_count: int,
+) -> dict[str, Any]:
+    costs = [
+        item.cost_usd_total
+        for item in corpus.index_items
+        if item.cost_usd_total is not None
+    ]
+    return {
+        "index_items": len(corpus.index_items),
+        "analyzed_videos": len(corpus.videos),
+        "skipped_videos": sum(item.status == "skipped" for item in corpus.index_items),
+        "failed_videos": sum(item.status == "failed" for item in corpus.index_items),
+        "concepts": concept_count,
+        "core_insights": sum(len(video.core_insights) for video in corpus.videos),
+        "article_ideas": len(ideas["article_ideas"]),
+        "project_ideas": len(ideas["project_ideas"]),
+        "deep_dives": len(ideas["deep_dives"]),
+        "open_questions": len(ideas["open_questions"]),
+        "claims": len(claims["claims"]),
+        "claims_needed": sum(
+            claim["verification_status"] == "needed" for claim in claims["claims"]
+        ),
+        "total_cost_usd": sum(costs),
+    }
 
 
 def _environment() -> Environment:
@@ -306,25 +574,112 @@ def _timeline(
     return rows
 
 
-def render_site(corpus: NormalizedCorpus, config: RenderConfig | None = None) -> dict[str, str]:
+def render_site(
+    corpus: NormalizedCorpus | CanonicalCorpus,
+    config: RenderConfig | None = None,
+    *,
+    canonical: CanonicalCorpus | None = None,
+) -> dict[str, str]:
     """Render pages and static assets into a relative-path string mapping."""
 
     config = config or RenderConfig()
     base_path = normalize_base_path(config.base_path)
     environment = _environment()
-    trends = derive_trends(corpus.videos)
-    timeline_months = month_axis(list(corpus.videos))
-    timeline_histogram = _timeline_histogram(corpus.videos)
-    ideas = derive_ideas(corpus.videos)
-    claims = derive_claims(corpus.videos)
-    graph = build_concept_graph(corpus.concepts, corpus.videos)
-    counts = _counts(corpus, ideas, claims)
-    videos_by_id = {video["video_id"]: video for video in corpus.videos}
+    compatibility_corpus = corpus if isinstance(corpus, NormalizedCorpus) else None
+    canonical_corpus = canonical
+    if isinstance(corpus, CanonicalCorpus):
+        if canonical is not None:
+            raise TypeError("canonical must be omitted when passing a canonical corpus")
+        canonical_corpus = corpus
+    use_canonical = canonical_corpus is not None and (
+        compatibility_corpus is None
+        or any(video.provenance.version != 1 for video in canonical_corpus.videos)
+    )
+
+    if use_canonical:
+        if canonical_corpus is None:
+            raise AssertionError("canonical corpus is required for canonical rendering")
+        # Keep the non-evidence page shape compatible while the page-level
+        # evidence and claim cards consume canonical rows below.
+        trends = derive_trends(canonical_corpus, compatibility=True)
+        ideas = derive_ideas(canonical_corpus, compatibility=True)
+        claims = derive_claims(canonical_corpus, compatibility=False)
+        graph = build_concept_graph(canonical_corpus, compatibility=True)
+        claim_rows = {
+            claim["id"]: claim
+            for claim in claims["claims"]
+        }
+        claim_values = []
+        for claim in claims["claims"]:
+            value = dict(claim)
+            value["verification_status"] = (
+                "needed" if value["verification_requested"] else "not-needed"
+            )
+            value["review_status"] = value.get("review_status") or "unreviewed"
+            value["ledger_review_state"] = (
+                value.get("ledger_review_state") or value["review_status"]
+            )
+            claim_values.append(value)
+        claims = {**claims, "claims": claim_values}
+        views = tuple(
+            _canonical_video_view(canonical_corpus, video, claim_rows)
+            for video in canonical_corpus.videos
+        )
+        timeline_months = month_axis(list(canonical_corpus.videos))
+        timeline_histogram = _timeline_histogram(views)
+        counts = _canonical_counts(
+            canonical_corpus,
+            ideas,
+            claims,
+            len(graph["nodes"]),
+        )
+        videos_by_id = {video["video_id"]: video for video in views}
+        concept_views = tuple(graph["nodes"])
+        concept_urls = {concept["id"]: concept["url"] for concept in concept_views}
+        concept_urls.update(
+            {
+                legacy_concept_id(concept["name"]): concept["url"]
+                for concept in concept_views
+            }
+        )
+        trends = {
+            **trends,
+            "tag_rankings": [
+                item
+                for item in trends["tag_rankings"]
+                if item["concept_id"] in concept_urls
+            ],
+        }
+        ideas = {
+            **ideas,
+            "project_ideas": [
+                {**item, "fits": item.get("raw_fit", item.get("fits"))}
+                for item in ideas["project_ideas"]
+            ],
+        }
+        search_records = build_search_records(canonical_corpus)
+    else:
+        if compatibility_corpus is None:
+            raise AssertionError("compatibility corpus is required for legacy rendering")
+        trends = derive_trends(compatibility_corpus.videos)
+        timeline_months = month_axis(list(compatibility_corpus.videos))
+        timeline_histogram = _timeline_histogram(compatibility_corpus.videos)
+        ideas = derive_ideas(compatibility_corpus.videos)
+        claims = derive_claims(compatibility_corpus.videos)
+        graph = build_concept_graph(compatibility_corpus.concepts, compatibility_corpus.videos)
+        counts = _counts(compatibility_corpus, ideas, claims)
+        videos_by_id = {video["video_id"]: video for video in compatibility_corpus.videos}
+        concept_views = compatibility_corpus.concepts
+        concept_urls = {concept["id"]: concept["url"] for concept in compatibility_corpus.concepts}
+        search_records = build_search_records(
+            compatibility_corpus.videos,
+            compatibility_corpus.concepts,
+        )
+    views_by_id = videos_by_id
     concepts_by_id = {concept["id"]: concept for concept in graph["nodes"]}
-    concept_urls = {concept["id"]: concept["url"] for concept in corpus.concepts}
-    video_urls = {video["video_id"]: video["url"] for video in corpus.videos}
-    video_titles = {video["video_id"]: video["title"] for video in corpus.videos}
-    search_records = build_search_records(corpus.videos, corpus.concepts)
+    views = tuple(views_by_id.values())
+    video_urls = {video["video_id"]: video["url"] for video in views}
+    video_titles = {video["video_id"]: video["title"] for video in views}
     search_json = json.dumps(
         search_records,
         ensure_ascii=False,
@@ -362,19 +717,28 @@ def render_site(corpus: NormalizedCorpus, config: RenderConfig | None = None) ->
             "concept_urls": concept_urls,
             "concept_url": concept_urls,
             "videos_by_id": videos_by_id,
+            "canonical_render": use_canonical,
             **values,
         }
         output[page_path] = environment.get_template(template_name).render(context)
 
     output: dict[str, str] = {}
-    common = {
-        "counts": counts,
-        "latest_videos": list(corpus.videos[:6]),
-        "rising_concepts": [
+    if use_canonical:
+        rising_concepts = [
+            {**item, "url": concept_urls.get(item["concept_id"], item["url"])}
+            for item in trends["tag_rankings"]
+            if item["rising"]
+        ][:8]
+    else:
+        rising_concepts = [
             {**item, **concepts_by_id[item["concept_id"]]}
             for item in trends["tag_rankings"]
             if item["rising"]
-        ][:8],
+        ][:8]
+    common = {
+        "counts": counts,
+        "latest_videos": list(views[:6]),
+        "rising_concepts": rising_concepts,
         "growth_svg": _growth_svg(trends["corpus_growth"]),
     }
     render_page("home.html", "index.html", "Overview", "home", **common)
@@ -410,7 +774,7 @@ def render_site(corpus: NormalizedCorpus, config: RenderConfig | None = None) ->
         graph_svg=_concept_graph_svg(
             graph, concepts_by_id, lambda target: url_for("concepts/index.html", target)
         ),
-        adjacency=_concept_adjacency(graph, corpus.concepts),
+        adjacency=_concept_adjacency(graph, concept_views),
     )
     idea_groups = (
         {"key": "article-ideas", "label": "Article ideas", "items": ideas["article_ideas"]},
@@ -443,7 +807,7 @@ def render_site(corpus: NormalizedCorpus, config: RenderConfig | None = None) ->
         "videos/index.html",
         "Videos",
         "videos",
-        videos=list(corpus.videos),
+        videos=list(views),
     )
     render_page(
         "search.html",
@@ -456,10 +820,10 @@ def render_site(corpus: NormalizedCorpus, config: RenderConfig | None = None) ->
     )
     render_page("404.html", "404.html", "Not found", "")
 
-    for concept in corpus.concepts:
+    for concept in concept_views:
         concept_video_ids = set(concept["video_ids"])
         concept_videos = tuple(
-            video for video in corpus.videos if video["video_id"] in concept_video_ids
+            video for video in views if video["video_id"] in concept_video_ids
         )
         tagged_videos = tuple(
             video
@@ -498,7 +862,7 @@ def render_site(corpus: NormalizedCorpus, config: RenderConfig | None = None) ->
             video_urls=video_urls,
             video_titles=video_titles,
         )
-    for video in corpus.videos:
+    for video in views:
         render_page(
             "video.html",
             video["url"],

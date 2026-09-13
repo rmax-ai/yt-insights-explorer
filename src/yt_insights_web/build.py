@@ -216,7 +216,7 @@ def build_site(
     temporary = Path(tempfile.mkdtemp(prefix=f".{output_path.name}.tmp-", dir=output_path.parent))
     backup: Path | None = None
     try:
-        rendered = render_site(normalized, config)
+        rendered = render_site(normalized, config, canonical=canonical)
         data = _data_files(normalized, config, canonical)
         _write_tree(temporary, rendered, data)
         _basic_validate_output(temporary)

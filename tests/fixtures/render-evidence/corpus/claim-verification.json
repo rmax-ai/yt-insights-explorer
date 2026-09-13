@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "id": "review:requested-verified",
+      "claim_refs": [
+        "claim:render-evidence-001:key_claims:0"
+      ],
+      "claim_fingerprint": "claim-fingerprint-v1:504e6fad98498ada8eef6f6ad07f1a0ac33cd1f6473634ab0c4af0f3af78433c",
+      "status": "verified",
+      "method": "synthetic fixture review",
+      "evidence": [
+        {
+          "url": "https://example.test/review?claim=0",
+          "note": "checked"
+        }
+      ],
+      "reviewed_at": "2026-09-13T00:00:00Z",
+      "reviewer": "fixture"
+    },
+    {
+      "id": "review:unrequested-verified",
+      "claim_refs": [
+        "claim:render-evidence-001:key_claims:2"
+      ],
+      "claim_fingerprint": "claim-fingerprint-v1:8a5ccbd90ad7e5cebbd5402f46d438d5a488aae9ea0bb3784dafea3940e20c15",
+      "status": "verified",
+      "method": "synthetic fixture review",
+      "evidence": [
+        {
+          "url": "https://example.test/review?claim=2",
+          "note": "checked"
+        }
+      ],
+      "reviewed_at": "2026-09-13T00:00:00Z",
+      "reviewer": "fixture"
+    }
+  ]
+}
