@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -116,7 +117,12 @@ def _data_files(
     return files
 
 
-def _write_tree(root: Path, rendered: dict[str, str], data: dict[str, Any]) -> None:
+def _write_tree(
+    root: Path,
+    rendered: dict[str, str],
+    data: dict[str, Any],
+    raw: dict[str, bytes] | None = None,
+) -> None:
     for relative, content in sorted(rendered.items()):
         destination = root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -127,6 +133,10 @@ def _write_tree(root: Path, rendered: dict[str, str], data: dict[str, Any]) -> N
         destination = root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(json_text(value), encoding="utf-8", newline="\n")
+    for relative, value in sorted((raw or {}).items()):
+        destination = root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(value)
 
 
 def _compact_html(content: str) -> str:
@@ -167,6 +177,7 @@ def build_site(
     publication_mode: str = "private",
     acknowledge_private_unreviewed: bool = False,
     generated_at: str | None = None,
+    costs_json: str | Path | None = None,
 ) -> Path:
     """Build into a sibling temporary directory and atomically replace output."""
 
@@ -176,6 +187,20 @@ def build_site(
         raise BuildError("source and output paths overlap")
     if publication_mode not in {"private", "public"}:
         raise BuildError(f"unknown publication mode: {publication_mode}")
+    costs_bytes: bytes | None = None
+    costs_report: dict[str, Any] | None = None
+    if costs_json is not None:
+        costs_path = Path(costs_json).expanduser().resolve()
+        if _overlaps(source_root, costs_path):
+            raise BuildError("costs JSON path overlaps source")
+        try:
+            costs_bytes = costs_path.read_bytes()
+            parsed_costs = json.loads(costs_bytes)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise BuildError(f"cannot read costs JSON: {exc}") from exc
+        if not isinstance(parsed_costs, dict):
+            raise BuildError("costs JSON must contain an object")
+        costs_report = parsed_costs
     output_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         loaded = load_corpus(source_root)
@@ -212,13 +237,19 @@ def build_site(
         base_path=base_path,
         publication_mode=publication_mode,
         generated_at=generated_at,
+        costs_report=costs_report,
     )
     temporary = Path(tempfile.mkdtemp(prefix=f".{output_path.name}.tmp-", dir=output_path.parent))
     backup: Path | None = None
     try:
         rendered = render_site(normalized, config, canonical=canonical)
         data = _data_files(normalized, config, canonical)
-        _write_tree(temporary, rendered, data)
+        _write_tree(
+            temporary,
+            rendered,
+            data,
+            {"costs/costs.json": costs_bytes} if costs_bytes is not None else None,
+        )
         _basic_validate_output(temporary)
         if output_path.exists():
             backup = output_path.parent / f".{output_path.name}.backup-{os.getpid()}"

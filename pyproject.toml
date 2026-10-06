@@ -15,6 +15,7 @@ dependencies = [
 
 [project.scripts]
 build_site = "yt_insights_web.cli:main"
+costs-report = "yt_insights_web.costs_cli:main"
 
 [dependency-groups]
 dev = [

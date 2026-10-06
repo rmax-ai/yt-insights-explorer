@@ -51,6 +51,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--generated-at",
         help="optional ISO-8601 display metadata",
     )
+    parser.add_argument(
+        "--costs-json",
+        type=Path,
+        help="optional generated costs report to include at /costs/",
+    )
     return parser
 
 
@@ -74,6 +79,7 @@ def main(argv: list[str] | None = None) -> int:
             publication_mode=args.publication,
             acknowledge_private_unreviewed=args.acknowledge_private_unreviewed,
             generated_at=args.generated_at,
+            costs_json=args.costs_json,
         )
     except BuildError as exc:
         print(f"error: {exc}", file=sys.stderr)

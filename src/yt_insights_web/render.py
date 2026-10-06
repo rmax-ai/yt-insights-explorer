@@ -35,6 +35,7 @@ class RenderConfig:
     base_path: str = "./"
     publication_mode: str = "private"
     generated_at: str | None = None
+    costs_report: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,8 @@ NAV_ITEMS = (
     NavItem("videos", "Videos", "videos/index.html", "V"),
     NavItem("search", "Search", "search/index.html", "/"),
 )
+
+COSTS_NAV_ITEM = NavItem("costs", "Costs", "costs/index.html", "$")
 
 GLYPHS = {
     "architecture": "[A]",
@@ -277,9 +280,7 @@ def _canonical_video_view(
                 "evidence": _canonical_evidence(item.evidence),
                 "verification_requested": item.verification_requested,
                 "verification_needed": item.verification_requested,
-                "verification_status": (
-                    "needed" if item.verification_requested else "not-needed"
-                ),
+                "verification_status": ("needed" if item.verification_requested else "not-needed"),
                 "verification_question": item.verification_question,
                 "review_status": claim.get("review_status") or "unreviewed",
                 "ledger_review_state": claim.get("ledger_review_state") or "unreviewed",
@@ -311,11 +312,7 @@ def _canonical_counts(
     claims: dict[str, Any],
     concept_count: int,
 ) -> dict[str, Any]:
-    costs = [
-        item.cost_usd_total
-        for item in corpus.index_items
-        if item.cost_usd_total is not None
-    ]
+    costs = [item.cost_usd_total for item in corpus.index_items if item.cost_usd_total is not None]
     return {
         "index_items": len(corpus.index_items),
         "analyzed_videos": len(corpus.videos),
@@ -574,6 +571,235 @@ def _timeline(
     return rows
 
 
+def _costs_page(
+    report: dict[str, Any],
+    *,
+    site_title: str,
+    page_title: str,
+    robots: str,
+    private_mode: bool,
+    publication_label: str,
+    base_path: str,
+    css_href: str,
+    js_href: str,
+    home_url: str,
+    costs_json_url: str,
+    nav_items: tuple[NavItem, ...],
+    url_for,
+) -> str:
+    """Render the optional costs page without adding a template asset."""
+
+    def text(value: Any) -> str:
+        return escape("—" if value is None else str(value))
+
+    totals = report.get("totals", {})
+    source = report.get("source", {})
+    processing = totals.get("processing_usd") or 0
+    scoring = totals.get("scoring_usd") or 0
+    operations_cost = totals.get("agent_ops_usd") or 0
+    corpus_total = processing + scoring + operations_cost
+    rows: list[str] = []
+    rows.append(
+        f'<header class="page-header"><p class="eyebrow">Cost evidence</p>'
+        f"<h1>What the corpus costs to process.</h1>"
+        f'<p class="lede">Captured spend from {text(source.get("with_cost_records", 0))} '
+        f"video cost records, not a projection.</p></header>"
+    )
+    kpi_values = [
+        ("processing_usd", "processing"),
+    ]
+    if report.get("gates") is not None:
+        kpi_values.append(("scoring_usd", "scoring"))
+    if report.get("operations") is not None:
+        kpi_values.append(("agent_ops_usd", "operations"))
+    kpi_values.append(("corpus_total", "corpus total"))
+    kpis = "".join(
+        f'<div class="kpi"><strong>$'
+        f"{text(corpus_total if key == 'corpus_total' else totals.get(key))}"
+        f"</strong><span>{label}</span></div>"
+        for key, label in kpi_values
+    )
+    rows.append(f'<section class="kpi-strip" aria-label="Cost totals">{kpis}</section>')
+
+    def table(title: str, headers: list[str], body: list[list[Any]]) -> str:
+        head = "".join(f"<th>{escape(header)}</th>" for header in headers)
+        table_rows = "".join(
+            "<tr>" + "".join(f"<td>{text(cell)}</td>" for cell in row) + "</tr>" for row in body
+        )
+        return (
+            '<section class="section-block">'
+            f'<div class="section-header"><h2>{escape(title)}</h2></div>'
+            f'<table class="data-table"><thead><tr>{head}</tr></thead>'
+            f"<tbody>{table_rows}</tbody></table></section>"
+        )
+
+    stages = {
+        item.get("stage"): item
+        for item in report.get("stages", [])
+        if isinstance(item, dict)
+    }
+    rows.append(
+        table(
+            "Processing stages",
+            ["Stage", "Model", "Videos", "Total", "Average"],
+            [
+                [
+                    stage.title(),
+                    ", ".join(
+                        f"{model} ({count})" if count != 1 else model
+                        for model, count in stages.get(stage, {}).get("models", {}).items()
+                    )
+                    or "—",
+                    stages.get(stage, {}).get("videos", 0),
+                    f"${stages.get(stage, {}).get('total_usd', '—')}",
+                    f"${stages.get(stage, {}).get('avg_usd', '—')}",
+                ]
+                for stage in ("summarize", "analyze")
+            ],
+        )
+    )
+    buckets = {
+        item.get("label"): item
+        for item in report.get("duration_buckets", [])
+        if isinstance(item, dict)
+    }
+    rows.append(
+        table(
+            "Duration buckets",
+            ["Duration", "Videos", "Total", "Average"],
+            [
+                [
+                    bucket,
+                    buckets.get(bucket, {}).get("videos", 0),
+                    f"${buckets.get(bucket, {}).get('total_usd', '—')}",
+                    f"${buckets.get(bucket, {}).get('avg_usd', '—')}",
+                ]
+                for bucket in ("up to 45 min", "45 min - 2.5 h", "2.5 h +", "unknown")
+            ],
+        )
+    )
+    distribution = report.get("distribution", {})
+    rows.append(
+        f'<section class="section-block"><h2>Distribution</h2><p class="lede">'
+        f"Median ${text(distribution.get('median_usd'))}; "
+        f"p90 ${text(distribution.get('p90_usd'))}; "
+        f"p95 ${text(distribution.get('p95_usd'))}; p99 ${text(distribution.get('p99_usd'))}; "
+        f"max ${text(distribution.get('max_usd'))}.</p></section>"
+    )
+    rows.append(
+        table(
+            "Monthly processing",
+            ["Month", "Videos", "Total", "Average"],
+            [
+                [
+                    item.get("month"),
+                    item.get("videos"),
+                    f"${item.get('total_usd')}",
+                    f"${item.get('avg_usd')}",
+                ]
+                for item in report.get("monthly", [])
+            ],
+        )
+    )
+    rows.append(
+        table(
+            "Rates used",
+            ["Model", "Input / 1M", "Output / 1M", "Cached / 1M"],
+            [
+                [
+                    rate.get("model"),
+                    f"${rate.get('input_per_1m')}",
+                    f"${rate.get('output_per_1m')}",
+                    f"${rate.get('cached_input_per_1m')}",
+                ]
+                for rate in report.get("rates", [])
+                if isinstance(rate, dict)
+            ],
+        )
+    )
+    operations = report.get("operations")
+    if isinstance(operations, list):
+        rows.append(
+            table(
+                "Operations",
+                ["Component", "Runs as", "Cost"],
+                [
+                    [
+                        item.get("component", "—"),
+                        item.get("runs_as", "—"),
+                        item.get("cost", "—"),
+                    ]
+                    for item in operations
+                    if isinstance(item, dict)
+                ],
+            )
+        )
+    rows.append(
+        table(
+            "Top 25 most expensive videos",
+            ["Rank", "Video", "Channel", "Duration", "Total"],
+            [
+                [
+                    index,
+                    item.get("title", item.get("video_id")),
+                    item.get("channel"),
+                    item.get("duration_s"),
+                    f"${item.get('total_usd')}",
+                ]
+                for index, item in enumerate(report.get("per_video", [])[:25], 1)
+            ],
+        )
+    )
+    if report.get("gates"):
+        rows.append(
+            table(
+                "Relevance scoring by month",
+                ["Month", "Scored", "Total"],
+                [
+                    [month, item.get("scored"), f"${item.get('total_usd')}"]
+                    for month, item in report["gates"].get("by_month", {}).items()
+                ],
+            )
+        )
+    rows.append(
+        f'<p class="muted"><a href="{escape(costs_json_url, quote=True)}">'
+        "Download costs.json</a></p>"
+    )
+    privacy = (
+        '<div class="privacy-banner">Private corpus · not for publication without review</div>'
+        if private_mode
+        else ""
+    )
+
+    def nav_link(item: NavItem) -> str:
+        active = " is-active" if item.key == "costs" else ""
+        return (
+            f'<a class="nav-link{active}" href="{escape(url_for(item.path), quote=True)}">'
+            f'<span class="nav-glyph" aria-hidden="true">{escape(item.glyph)}</span>'
+            f"<span>{escape(item.label)}</span></a>"
+        )
+
+    nav = "".join(nav_link(item) for item in nav_items)
+    return (
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{escape(page_title)} · {escape(site_title)}</title>"
+        f'<meta name="robots" content="{escape(robots)}">'
+        f'<link rel="stylesheet" href="{escape(css_href, quote=True)}">'
+        f'<script defer src="{escape(js_href, quote=True)}"></script></head>'
+        '<body class="site-shell">'
+        f'<a class="skip-link" href="#main">Skip to content</a><header class="site-header">'
+        f'<div class="brand-lockup"><a class="brand" '
+        f'href="{escape(home_url, quote=True)}">{escape(site_title)}</a>'
+        '<span class="brand-subtitle">private corpus explorer</span></div>'
+        f'<nav class="primary-nav" aria-label="Primary navigation">{nav}</nav></header>{privacy}'
+        f'<main id="main" class="main-content">{"".join(rows)}</main>'
+        f'<footer class="site-footer"><span>{escape(site_title)}</span>'
+        f"<span>Static output · no tracking · {escape(publication_label)}</span>"
+        "</footer></body></html>"
+    )
+
+
 def render_site(
     corpus: NormalizedCorpus | CanonicalCorpus,
     config: RenderConfig | None = None,
@@ -605,10 +831,7 @@ def render_site(
         ideas = derive_ideas(canonical_corpus, compatibility=True)
         claims = derive_claims(canonical_corpus, compatibility=False)
         graph = build_concept_graph(canonical_corpus, compatibility=True)
-        claim_rows = {
-            claim["id"]: claim
-            for claim in claims["claims"]
-        }
+        claim_rows = {claim["id"]: claim for claim in claims["claims"]}
         claim_values = []
         for claim in claims["claims"]:
             value = dict(claim)
@@ -637,17 +860,12 @@ def render_site(
         concept_views = tuple(graph["nodes"])
         concept_urls = {concept["id"]: concept["url"] for concept in concept_views}
         concept_urls.update(
-            {
-                legacy_concept_id(concept["name"]): concept["url"]
-                for concept in concept_views
-            }
+            {legacy_concept_id(concept["name"]): concept["url"] for concept in concept_views}
         )
         trends = {
             **trends,
             "tag_rankings": [
-                item
-                for item in trends["tag_rankings"]
-                if item["concept_id"] in concept_urls
+                item for item in trends["tag_rankings"] if item["concept_id"] in concept_urls
             ],
         }
         ideas = {
@@ -694,6 +912,8 @@ def render_site(
             return page_url(target, base_path)
         return relative_url(current_page, target)
 
+    nav_items = NAV_ITEMS + (COSTS_NAV_ITEM,) if config.costs_report is not None else NAV_ITEMS
+
     def render_page(
         template_name: str, page_path: str, page_title: str, section: str, **values: Any
     ) -> None:
@@ -707,7 +927,7 @@ def render_site(
             "publication_label": config.publication_mode,
             "base_path": base_path,
             "current_section": section,
-            "nav_items": NAV_ITEMS,
+            "nav_items": nav_items,
             "url": lambda target: url_for(page_path, target),
             "css_href": asset_url(page_path, "assets/site.css", base_path),
             "js_href": asset_url(page_path, "assets/site.js", base_path),
@@ -819,12 +1039,26 @@ def render_site(
         search_kinds=tuple(KIND_ORDER),
     )
     render_page("404.html", "404.html", "Not found", "")
+    if config.costs_report is not None:
+        output["costs/index.html"] = _costs_page(
+            config.costs_report,
+            site_title=config.site_title,
+            page_title="Costs",
+            robots="noindex, nofollow" if config.publication_mode == "private" else "index, follow",
+            private_mode=config.publication_mode == "private",
+            publication_label=config.publication_mode,
+            base_path=base_path,
+            css_href=asset_url("costs/index.html", "assets/site.css", base_path),
+            js_href=asset_url("costs/index.html", "assets/site.js", base_path),
+            home_url=url_for("costs/index.html", "index.html"),
+            costs_json_url=url_for("costs/index.html", "costs/costs.json"),
+            nav_items=nav_items,
+            url_for=lambda target: url_for("costs/index.html", target),
+        )
 
     for concept in concept_views:
         concept_video_ids = set(concept["video_ids"])
-        concept_videos = tuple(
-            video for video in views if video["video_id"] in concept_video_ids
-        )
+        concept_videos = tuple(video for video in views if video["video_id"] in concept_video_ids)
         tagged_videos = tuple(
             video
             for video in concept_videos

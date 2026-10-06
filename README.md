@@ -54,6 +54,21 @@ uv run build_site \
 Public mode changes the robots treatment and warning banner. It does not add
 access control or deploy anything. A static host must be protected separately.
 
+## Cost report
+
+Generate the processing-cost JSON and optional Markdown breakdown without
+reading transcripts:
+
+```sh
+uv run costs-report \
+  --source "$HOME/src/rmax-ai/yt-insights" \
+  --json-out .build/costs.json \
+  --md-out .build/costs.md
+```
+
+Pass the JSON to `build_site --costs-json .build/costs.json` to include the
+optional `/costs/` page and downloadable `costs/costs.json`.
+
 ## View and serve
 
 For a quick local preview, open `site/index.html` directly. Core navigation,
