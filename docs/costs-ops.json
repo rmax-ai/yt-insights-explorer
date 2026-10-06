@@ -1,0 +1,13 @@
+{
+  "agent_ops_usd": 0.15,
+  "note": "Operations snapshot as of 2026-10-06. Re-check and update when regenerating the cost report. agent_ops_usd covers LLM cron-run overhead only, last 30 days; script-only jobs are $0.",
+  "operations": [
+    {"component": "Daily digest drain", "runs_as": "script-only cron job", "cost": "$0 (its LLM steps are the per-video costs above)"},
+    {"component": "Weekly recommendations digest", "runs_as": "LLM cron run (deepseek-flash)", "cost": "$0.026 per run"},
+    {"component": "Gate tracker + gate insights jobs", "runs_as": "LLM cron runs, 2 per day", "cost": "~$0.002 each"},
+    {"component": "Tracker sync, consumption snapshot, channel suggestions, ingests, watchdogs", "runs_as": "script-only cron jobs", "cost": "$0"},
+    {"component": "Site build + publish", "runs_as": "local build (~100 s CPU), 93 MB force-push", "cost": "$0"},
+    {"component": "Hosting (GitHub Pages), domain, TLS", "runs_as": "-", "cost": "$0 marginal"},
+    {"component": "Storage (git repositories + SQLite, local disk)", "runs_as": "-", "cost": "$0"}
+  ]
+}
