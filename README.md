@@ -165,6 +165,15 @@ are optional enrichment and remain unresolved rather than aborting unrelated
 records. Claim staleness is derived only from the committed
 `claim-verification.json` policy cutoff, never from the build clock.
 
+## Cost evidence
+
+Every processed video records its own spend (`costs.summarize` and
+`costs.analyze` in `processed/<video_id>.json`), every scored candidate
+records `meta.cost_usd`, and cron runs report charged USD per run. The
+end-to-end breakdown — per-video averages, distribution, monthly history, and
+the operations layer — lives in
+[`docs/cost-breakdown.md`](docs/cost-breakdown.md).
+
 ## Development notes
 
 The runtime site is dependency-free vanilla JavaScript. Python owns
