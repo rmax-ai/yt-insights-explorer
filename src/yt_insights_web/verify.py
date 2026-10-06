@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import posixpath
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
@@ -27,23 +28,74 @@ class VerificationReport:
     total_bytes: int
 
 
+def _json_string_values(value: object) -> Iterator[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for child in value.values():
+            yield from _json_string_values(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _json_string_values(child)
+
+
 class _HTMLCollector(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.references: list[tuple[str, str]] = []
         self.ids: set[str] = set()
+        self.logical_strings: list[str] = []
+        self._json_script_parts: list[str] | None = None
 
     def handle_starttag(self, tag: str, attrs) -> None:
         attributes = dict(attrs)
+        self.logical_strings.extend(
+            value for _, value in attrs if isinstance(value, str)
+        )
         if "id" in attributes and attributes["id"]:
             self.ids.add(attributes["id"])
         for attribute in ("href", "src"):
             value = attributes.get(attribute)
             if value:
                 self.references.append((attribute, value))
+        if tag == "script":
+            self._finish_json_script()
+            script_type = attributes.get("type")
+            if (
+                isinstance(script_type, str)
+                and script_type.strip().casefold() == "application/json"
+            ):
+                self._json_script_parts = []
 
     def handle_startendtag(self, tag: str, attrs) -> None:
         self.handle_starttag(tag, attrs)
+        if tag == "script":
+            self._finish_json_script()
+
+    def handle_data(self, data: str) -> None:
+        if self._json_script_parts is not None:
+            self._json_script_parts.append(data)
+        else:
+            self.logical_strings.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "script":
+            self._finish_json_script()
+
+    def close(self) -> None:
+        super().close()
+        self._finish_json_script()
+
+    def _finish_json_script(self) -> None:
+        if self._json_script_parts is None:
+            return
+        payload = "".join(self._json_script_parts)
+        self._json_script_parts = None
+        try:
+            value = json.loads(payload)
+        except json.JSONDecodeError:
+            return
+        self.logical_strings.extend(_json_string_values(value))
 
 
 def _index_tree(
@@ -80,7 +132,35 @@ def _index_tree(
 
 
 def _filesystem_leak(text: str) -> bool:
-    return "/home/" in text or "file:" in text or bool(_WINDOWS_PATH.search(text))
+    return "/home/" in text or "file://" in text or bool(_WINDOWS_PATH.search(text))
+
+
+def _logical_strings(
+    path: Path,
+    text: str,
+    *,
+    collector: _HTMLCollector | None = None,
+) -> Iterator[str]:
+    """Yield decoded strings from JSON/HTML, or raw text for other files.
+
+    Malformed JSON files fall back to their raw text so a parse failure does
+    not disable the filesystem-leak check.
+    """
+
+    if path.suffix == ".json":
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError:
+            yield text
+        else:
+            yield from _json_string_values(value)
+    elif path.suffix == ".html":
+        html_collector = collector or _HTMLCollector()
+        html_collector.feed(text)
+        html_collector.close()
+        yield from html_collector.logical_strings
+    else:
+        yield text
 
 
 def _load_site_config(root: Path) -> str:
@@ -228,14 +308,17 @@ def verify_site(root: str | Path) -> VerificationReport:
             text = page.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             raise VerificationError(f"cannot read HTML page {page}: {exc}") from exc
-        if _filesystem_leak(text):
-            raise VerificationError(f"filesystem path leak in {page}")
         collector = _HTMLCollector()
         try:
-            collector.feed(text)
-            collector.close()
+            has_leak = any(
+                _filesystem_leak(logical_text)
+                for logical_text in _logical_strings(page, text, collector=collector)
+            )
         except Exception as exc:
             raise VerificationError(f"invalid HTML in {page}: {exc}") from exc
+        if has_leak:
+            raise VerificationError(f"filesystem path leak in {page}")
+        collector.logical_strings.clear()
         collectors[page] = collector
         page_relatives[page] = page.relative_to(root).as_posix()
     for path in leak_paths:
@@ -243,7 +326,7 @@ def verify_site(root: str | Path) -> VerificationReport:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        if _filesystem_leak(text):
+        if any(_filesystem_leak(logical_text) for logical_text in _logical_strings(path, text)):
             raise VerificationError(f"filesystem path leak in {path}")
     video_count, allowed_video_ids = _check_video_provenance(root)
     for page, collector in collectors.items():
