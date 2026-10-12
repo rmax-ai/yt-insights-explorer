@@ -11,9 +11,13 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
-# Self-imposed sanity cap; GitHub Pages allows up to 1 GB per repository.
-# Raised from 25 MB on 2026-09-10 as the corpus outgrew the old budget.
-MAX_BYTES = 100_000_000
+# Self-imposed sanity cap; GitHub Pages allows up to 1 GB per published site
+# and 100 MB per file (largest single file here: search/index.html).
+# Raised from 25 MB on 2026-09-10, then from 100 MB on 2026-10-12.
+# Measured 2026-10-12: 111.5 MB / 6,888 files / 410 videos (+55 videos since the
+# 2026-10-06 publish, ~272 KB marginal per video, ~2.6 MB per day at the current
+# 10-video/day drain rate).  Revisit when the tree passes 400 MB.
+MAX_BYTES = 500_000_000
 _WINDOWS_PATH = re.compile(r"\b[A-Za-z]:[\\/]")
 
 
