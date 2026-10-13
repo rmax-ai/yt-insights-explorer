@@ -1,0 +1,43 @@
+{
+  "items": [
+    {
+      "video_id": "r8RGYw1n-5k",
+      "title": "What Everyone Missed About Gemini 3 w/ Salim, Dave & Alexander Wissner-Gross | EP#209",
+      "channel": "Maxi",
+      "status": "analyzed",
+      "ingested_at": "2026-09-08T07:46:13.495559+00:00",
+      "artifacts": {
+        "transcript": null,
+        "summary": "artifacts/2025-11-20-what-everyone-missed-about-gemini-3-w-salim-dave-alexander-w-r8RGYw1n-5k/summary.md",
+        "insights": "artifacts/2025-11-20-what-everyone-missed-about-gemini-3-w-salim-dave-alexander-w-r8RGYw1n-5k/insights.json"
+      },
+      "cost_usd_total": 0.16705599999999998
+    },
+    {
+      "video_id": "sL3QPAYoB6s",
+      "title": "Charisma Expert: 5 Ways To Project Confidence (Even When You Don’t Feel It) | Dr. Shadé Zahrai",
+      "channel": "Maxi",
+      "status": "analyzed",
+      "ingested_at": "2026-08-18T07:05:26.396817+00:00",
+      "artifacts": {
+        "transcript": null,
+        "summary": "artifacts/2026-01-14-charisma-expert-5-ways-to-project-confidence-even-when-you-d-sL3QPAYoB6s/summary.md",
+        "insights": "artifacts/2026-01-14-charisma-expert-5-ways-to-project-confidence-even-when-you-d-sL3QPAYoB6s/insights.json"
+      },
+      "cost_usd_total": 0.158564
+    },
+    {
+      "video_id": "N5RPTlRR9eY",
+      "title": "Systems Thinking in Practice",
+      "channel": "Maxi",
+      "status": "analyzed",
+      "ingested_at": "2026-09-08T07:15:56.063297+00:00",
+      "artifacts": {
+        "transcript": null,
+        "summary": "artifacts/2021-05-11-systems-thinking-in-practice-N5RPTlRR9eY/summary.md",
+        "insights": "artifacts/2021-05-11-systems-thinking-in-practice-N5RPTlRR9eY/insights.json"
+      },
+      "cost_usd_total": 0.055265
+    }
+  ]
+}

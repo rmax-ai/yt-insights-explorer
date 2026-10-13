@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+  <header class="page-header"><p class="eyebrow">Cross-video support</p><h1>Convergence</h1><p class="lede">Concepts that many videos carry are the ones this corpus agrees on. A concept enters this list when {{ convergence.min_support }} or more videos carry it. {{ convergence.totals.groups }} groups cover {{ convergence.totals.nodes_grouped }} concept nodes across {{ convergence.totals.videos }} videos. Joining the variants recovered {{ convergence.totals.support_recovered }} video supports that the equality-only concept identity leaves split.</p></header>
+  <label class="field-label" for="convergence-filter">Filter groups</label>
+  <input class="text-input" id="convergence-filter" data-filter-input="convergence-list" type="search" placeholder="Find a group or a tag">
+  <div id="convergence-list">
+    <section class="section-block">
+      <div class="section-header"><h2>Carried by {{ convergence.display_support }} or more videos</h2><span class="muted">{{ display_groups|length }} groups</span></div>
+      <div class="adjacency-list">
+        {% for group in display_groups %}
+          <article class="adjacency-row" data-filter-value="{{ group.label|lower }} {% for tag in group.top_tags %}{{ tag.name|lower }} {% endfor %}">
+            <a href="{{ url(group.url) }}"><strong>{{ group.label }}</strong></a>
+            <span>{{ group.support }} videos · {{ group.gold }} gold insights · {{ group.high_novelty }} high-novelty insights · {{ group.insight_total }} insights</span>
+            <span class="muted">Tags: {% for tag in group.top_tags %}{{ tag.name }} ({{ tag.videos }}){% if not loop.last %}, {% endif %}{% endfor %}</span>
+            {% if group.members|length > 1 %}<span class="muted">Variant spellings: {% for member in group.members %}<a href="{{ url(member.url) }}">{{ member.name }}</a> ({{ member.support }}){% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+    <section class="section-block">
+      <div class="section-header"><h2>Carried by {{ convergence.min_support }} to {{ convergence.display_support - 1 }} videos</h2><span class="muted">{{ remaining_groups|length }} groups</span></div>
+      <div class="adjacency-list">
+        {% for group in remaining_groups %}
+          <article class="adjacency-row" data-filter-value="{{ group.label|lower }} {% for tag in group.top_tags %}{{ tag.name|lower }} {% endfor %}"><a href="{{ url(group.url) }}">{{ group.label }}</a><span>{{ group.support }} videos{% if group.gold %} · {{ group.gold }} gold{% endif %}{% if group.members|length > 1 %} · {{ group.members|length }} spellings{% endif %}</span></article>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+  <section class="methodology prose"><h2>Reading the list</h2><p>{{ convergence.rule }}</p><p>Support counts distinct videos, never mentions. The gold count reports insights that carry both a high novelty mark and strong evidence. The variant spellings keep their own concept pages, so a link opens the page of one spelling only.</p></section>
+{% endblock %}

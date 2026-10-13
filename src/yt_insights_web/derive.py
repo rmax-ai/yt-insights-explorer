@@ -13,7 +13,7 @@ normalizer or a second source of semantic truth.
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -32,6 +32,26 @@ from .slug import canonical_text, concept_id, video_slug
 IDEA_SECTIONS = ("article_ideas", "project_ideas", "deep_dives", "open_questions")
 CLAIM_TYPE_ORDER = ("causal", "comparative", "factual", "opinion", "prediction")
 PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
+
+# Convergence aggregates rank concept variants by the number of videos that
+# carry them.  Measured 2026-10-13 on the live corpus (425 videos): 518 variant
+# groups exist across 6,313 nodes, and the two-video gate reports 674 groups
+# over 948 grouped nodes, recovering 219 video supports that the equality-only
+# concept identity leaves split.
+CONVERGENCE_MIN_SUPPORT = 2
+CONVERGENCE_DISPLAY_SUPPORT = 4
+CONVERGENCE_TOP_TAGS = 5
+CONVERGENCE_RULE = (
+    "Two names join one group when they are equal after casefolding and after "
+    "removal of every character that is not a letter or a digit.  Concept pages "
+    "keep equality-only identity, so a group reports its members."
+)
+_EMPTY_FACTS: dict[str, Any] = {
+    "insight_total": 0,
+    "high_novelty": 0,
+    "gold": 0,
+    "tags": (),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -558,6 +578,168 @@ def derive_trends(
         **common,
         "tag_monthly": tag_monthly,
         "tag_rankings": tag_rankings,
+    }
+
+
+def convergence_key(name: str) -> str:
+    """Return the variant key of a concept name.
+
+    The key ignores case and every character that is not a letter or a digit,
+    so ``reward hacking``, ``Reward hacking``, and ``reward-hacking`` share one
+    key.  The key is an aggregate aid only; concept identity stays unchanged.
+    """
+
+    return "".join(character for character in name.casefold() if character.isalnum())
+
+
+def _convergence_tag_names(context: _ConsumerContext, video: Any) -> tuple[str, ...]:
+    """Return the visible tag names of one video on either consumer path."""
+
+    if not context.canonical:
+        return tuple(sorted({tag["name"] for tag in video["tags"] if tag.get("name")}))
+    labels = _concept_labels(context, video)
+    if video.provenance.version == 2:
+        labels = tuple(label for label in labels if "::topics[" not in label.location)
+    return tuple(sorted({label.name for label in labels if label.name}))
+
+
+def _convergence_video_facts(context: _ConsumerContext) -> dict[str, dict[str, Any]]:
+    """Index the per-video insight counts and tags the convergence view needs."""
+
+    facts: dict[str, dict[str, Any]] = {}
+    for video in context.videos:
+        canonical = isinstance(video, NormalizedVideo)
+        insights = video.core_insights if canonical else video["core_insights"]
+        total = 0
+        high = 0
+        gold = 0
+        for insight in insights:
+            total += 1
+            novelty = insight.novelty if canonical else insight["novelty"]
+            if novelty != "high":
+                continue
+            high += 1
+            strength = insight.evidence_strength if canonical else insight["evidence_strength"]
+            if strength == "strong":
+                gold += 1
+        facts[_video_id(video)] = {
+            "insight_total": total,
+            "high_novelty": high,
+            "gold": gold,
+            "tags": _convergence_tag_names(context, video),
+        }
+    return facts
+
+
+def derive_convergence(
+    videos: list[Any] | tuple[Any, ...] | NormalizedCorpus,
+    graph: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Rank concept variants by cross-video support and insight weight.
+
+    The site groups concepts by trimmed, case-insensitive equality.  That rule
+    keeps every existing concept page stable, but it splits one concept across
+    a tag spelling and a connection spelling, for example ``reward-hacking``
+    and ``Reward hacking``.  This aggregate joins those variants, counts the
+    distinct videos behind the group, and joins the novelty and evidence
+    counts of those videos.  Every concept that at least ``min_support``
+    videos carry is reported, so a group with one member is a concept that
+    needed no join.  The aggregate adds no new identity and no inference from
+    prose.
+    """
+
+    context = _context(videos)
+    facts = _convergence_video_facts(context)
+
+    variants: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
+    for node in graph.get("nodes", ()):
+        name = node.get("name") or ""
+        key = convergence_key(name)
+        if key:
+            variants[key].append(node)
+
+    rows: list[dict[str, Any]] = []
+    nodes_grouped = 0
+    support_recovered = 0
+    for key in sorted(variants):
+        members = variants[key]
+        member_support = [(len(set(member.get("video_ids") or ())), member) for member in members]
+        support = set().union(*(set(member.get("video_ids") or ()) for member in members))
+        if len(support) < CONVERGENCE_MIN_SUPPORT:
+            continue
+
+        ordered_members = sorted(
+            member_support,
+            key=lambda item: (-item[0], item[1]["name"].casefold(), item[1]["id"]),
+        )
+        label_member = ordered_members[0][1]
+        support_recovered += max(0, len(support) - ordered_members[0][0])
+        nodes_grouped += len(members)
+
+        insight_total = 0
+        high_novelty = 0
+        gold = 0
+        tag_counter: Counter[str] = Counter()
+        for video_id in sorted(support):
+            video_facts = facts.get(video_id, _EMPTY_FACTS)
+            insight_total += video_facts["insight_total"]
+            high_novelty += video_facts["high_novelty"]
+            gold += video_facts["gold"]
+            tag_counter.update(video_facts["tags"])
+
+        top_tags = [
+            {"name": name, "videos": count}
+            for name, count in sorted(
+                tag_counter.items(), key=lambda item: (-item[1], item[0].casefold(), item[0])
+            )[:CONVERGENCE_TOP_TAGS]
+        ]
+        rows.append(
+            {
+                "key": key,
+                "id": label_member["id"],
+                "label": label_member["name"],
+                "url": label_member["url"],
+                "support": len(support),
+                "insight_total": insight_total,
+                "high_novelty": high_novelty,
+                "gold": gold,
+                "top_tags": top_tags,
+                "members": [
+                    {
+                        "id": member["id"],
+                        "name": member["name"],
+                        "url": member["url"],
+                        "support": count,
+                        "tag_video_count": member.get("tag_video_count", 0),
+                        "connection_video_count": member.get("connection_video_count", 0),
+                    }
+                    for count, member in ordered_members
+                ],
+                "video_ids": sorted(support),
+            }
+        )
+
+    rows.sort(
+        key=lambda row: (
+            -row["support"],
+            -row["gold"],
+            -row["high_novelty"],
+            row["label"].casefold(),
+            row["key"],
+        )
+    )
+    return {
+        "schema_version": 1,
+        "rule": CONVERGENCE_RULE,
+        "min_support": CONVERGENCE_MIN_SUPPORT,
+        "display_support": CONVERGENCE_DISPLAY_SUPPORT,
+        "totals": {
+            "groups": len(rows),
+            "nodes_grouped": nodes_grouped,
+            "support_recovered": support_recovered,
+            "videos": len(facts),
+        },
+        "groups": rows,
     }
 
 

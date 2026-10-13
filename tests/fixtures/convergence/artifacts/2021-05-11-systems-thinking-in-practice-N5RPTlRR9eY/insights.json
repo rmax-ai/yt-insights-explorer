@@ -1,0 +1,345 @@
+{
+  "deep_dives": [
+    {
+      "topic": "Whole-system evaluation for multi-agent systems",
+      "research_question": "What metrics and harness designs can reliably detect emergent failures in multi-agent systems that component-level benchmarks miss?",
+      "why": "Agent pipelines are debugged and benchmarked module-by-module, but failures often arise from interactions among components; evaluation must measure the ensemble before optimizing parts.",
+      "trigger_insight": "systemic properties only appear at the system level",
+      "evidence_quotes": [
+        "systemic properties only appear at the system level",
+        "Reductionism studies objects in isolation by taking them apart from the bottom up"
+      ],
+      "priority": "high"
+    },
+    {
+      "topic": "Viable System Model as a diagnostic audit for agent architectures",
+      "research_question": "In long-running autonomous agent deployments, does the absence of any VSM function (operations, coordination, control, intelligence, policy) predict specific classes of production failure?",
+      "why": "Agent systems that fuse execution, coordination, auditing, environment scanning, and policy into a single loop may be unable to adapt to environmental changes; VSM gives a grounded set of functions to inspect.",
+      "trigger_insight": "five necessary functions: System 5 (policy/identity), System 4 (intelligence/environment), System 3 (control/overview), System 2 (stability/coordination), and System 1 (sub-systems/operations)",
+      "evidence_quotes": [
+        "Identified five necessary functions: System 5 (policy/identity), System 4 (intelligence/environment), System 3 (control/overview), System 2 (stability/coordination), and System 1 (sub-systems/operations).",
+        "Successful systems must be able to adapt and survive over time."
+      ],
+      "priority": "high"
+    },
+    {
+      "topic": "Boundary judgement governance for agent context and tooling",
+      "research_question": "How should decisions about what an agent can see, remember, and do be formalized so that boundary exclusions become explicit, contestable, and revisable by affected stakeholders?",
+      "why": "Agent context, memory, tool access, and permitted scope are boundary judgements that encode values and determine whose interests count; leaving them implicit bakes those choices in without discussion.",
+      "trigger_insight": "How we draw the line between the system and the environment is a matter of judgement.",
+      "evidence_quotes": [
+        "How we draw the line between the system and the environment is a matter of judgement."
+      ],
+      "priority": "high"
+    },
+    {
+      "topic": "Problem structuring as a first-class agent workflow",
+      "research_question": "Which problem structuring method steps can be automated in an agent, and under what conditions does structuring-before-solving reduce solving-the-wrong-problem failures?",
+      "why": "For ill-defined or multi-stakeholder tasks, an agent that immediately optimizes against its first model of the request will often solve the wrong problem; the representation-building, elicitation, and commitment phases need explicit support.",
+      "trigger_insight": "PSMs offer a way of representing situations to enable participants to clarify predicaments, converge on actionable issues, and agree on commitments.",
+      "evidence_quotes": [
+        "PSMs offer a way of representing situations to enable participants to clarify predicaments, converge on actionable issues, and agree on commitments.",
+        "Applied systems researchers asked what systems thinking meant for policy making, management, and analysis."
+      ],
+      "priority": "medium"
+    },
+    {
+      "topic": "Process-quality metrics for experiential-learning agents",
+      "research_question": "How can the quality of an agent's facilitation be measured when its intended contribution is stakeholder learning, shared understanding, and commitment rather than delivery of a final artifact?",
+      "why": "In governance and multi-stakeholder situations, optimizing only for solution quality can be counterproductive if the actual gap is collective cognition; process outcomes need to be tracked.",
+      "trigger_insight": "experiential learning rather than system design",
+      "evidence_quotes": [
+        "Focuses on experiential learning rather than system design."
+      ],
+      "priority": "medium"
+    }
+  ],
+  "article_ideas": [
+    {
+      "title": "Systemic Metrics Before Micro-Optimization: Why Your Agent Benchmarks Are Lying",
+      "thesis": "Because systemic properties only emerge from interactions, any agent evaluation that averages component scores will mislead you; the primary quality gate must be whole-system scenarios and measured emergent outcomes.",
+      "angle": "A critique of component-level eval culture with a practical mandate for whole-session telemetry and global failure-mode tracking.",
+      "based_on": "systemic properties only appear at the system level",
+      "audience": "AI engineers and agent platform teams"
+    },
+    {
+      "title": "Does Your Agent Company Have Five Systems? Architecting Autonomous Agents with Beer's Viable System Model",
+      "thesis": "Long-lived agent systems should separate operations, coordination, control, intelligence, and policy into distinct subsystems rather than stuffing all functions into one orchestration loop, because viability requires structural variety.",
+      "angle": "Applying management cybernetics to software architecture.",
+      "based_on": "Identified five necessary functions: System 5 (policy/identity), System 4 (intelligence/environment), System 3 (control/overview), System 2 (stability/coordination), and System 1 (sub-systems/operations).",
+      "audience": "Software architects and agent framework designers"
+    },
+    {
+      "title": "Structure First, Solve Second: The Soft OR Phase Your Agent Is Missing",
+      "thesis": "When tasks are messy or multi-stakeholder, an agent should produce a shared representation of the situation before any proposed solution; problem structuring is productive work, not an interaction tax.",
+      "angle": "Making problem structuring methods (PSMs) concrete for AI product designers.",
+      "based_on": "PSMs offer a way of representing situations to enable participants to clarify predicaments, converge on actionable issues, and agree on commitments.",
+      "audience": "AI product managers, conversation designers, planning-system engineers"
+    },
+    {
+      "title": "What Your Agent Can't See Is a Political Decision",
+      "thesis": "The boundary of an agent's context, tools, and permissions is a subjective judgement that determines whose interests it serves; hiding that boundary in implementation makes it no less value-laden and far less accountable.",
+      "angle": "Linking AI ethics to architecture through boundary judgements.",
+      "based_on": "How we draw the line between the system and the environment is a matter of judgement.",
+      "audience": "AI governance, platform engineering, product managers"
+    }
+  ],
+  "project_ideas": [
+    {
+      "name": "Emergence Harness: Whole-Session Agent Evaluation",
+      "hypothesis": "Adding a whole-session evaluation harness that scores final, emergent, ecosystem-level outcomes will catch a class of cascade failures that component-level metrics miss in multi-agent orchestration.",
+      "poc": "Build a small multi-agent system with interchangeable subagents; run a suite of end-to-end scenarios with injected perturbations; compare aggregated component scores against whole-system outcome scores and list cases where rankings invert.",
+      "measurement": "Detection rate and precision of whole-session vs component-only metrics; number of failure modes visible only at system level; runtime overhead.",
+      "based_on": "systemic properties only appear at the system level",
+      "fits": "beyond-evals"
+    },
+    {
+      "name": "VSM-Check: Agentic Viability Audit",
+      "hypothesis": "Mapping an existing agent architecture onto VSM and adding a separate environment-scanning/intelligence loop (System 4) will reduce the frequency of surprise failures when task distributions shift, compared to a monolithic baseline.",
+      "poc": "Instrument a deployed agent system to identify VSM functions, add a low-frequency scanning subsystem that watches environment changes, and run long-duration simulations with variable task distributions.",
+      "measurement": "Surprise failure rate, recovery time after distribution shifts, system survival rate; audit coverage score.",
+      "based_on": "Identified five necessary functions: System 5 (policy/identity), System 4 (intelligence/environment), System 3 (control/overview), System 2 (stability/coordination), and System 1 (sub-systems/operations).",
+      "fits": "new"
+    },
+    {
+      "name": "GateHouse: Boundary Board for Agent Scopes",
+      "hypothesis": "Making an agent's context and tool scope an explicit, versioned boundary register that stakeholders can review yields fewer harmful exclusions than an implementation-chosen, static scope, while adding acceptable latency.",
+      "poc": "Implement an agent that loads tools and context sources from an auditable scope file; present scenarios where key stakeholders or data sources are outside the default scope; compare explicit review vs static default.",
+      "measurement": "Rate of relevant stakeholders/sources missing from final output; false inclusion rate; setup/review time.",
+      "based_on": "How we draw the line between the system and the environment is a matter of judgement.",
+      "fits": "gatehouse"
+    },
+    {
+      "name": "RichPicture Agent: Structure-Before-Solve Planner",
+      "hypothesis": "For ambiguous, multi-stakeholder task requests, an agent that first elicits and checks a rich picture/causal map will increase participant commitment and reduce plan rework versus an agent that solves from the raw request.",
+      "poc": "Build two variants of a planner for unstructured tasks; one converts the request directly into a plan, the other runs a mapping and elicitation dialogue first; conduct A/B tests with users.",
+      "measurement": "User-rated shared understanding and commitment score, rework rate, final task success, dialogue overhead.",
+      "based_on": "PSMs offer a way of representing situations to enable participants to clarify predicaments, converge on actionable issues, and agree on commitments.",
+      "fits": "movement-lab"
+    }
+  ],
+  "core_insights": [
+    {
+      "insight": "Because systemic properties appear only at the whole-system level, evaluations and optimizations that isolate individual components (prompts, models, tools) cannot be trusted to improve or even predict the behavior of complete agent systems; system-level emergent outcomes need to be evaluated as a whole.",
+      "type": "mental_model",
+      "why_it_matters": "Many agent pipelines are debugged and benchmarked component-by-component, yet whole-system failure can arise from interactions that component-level metrics never expose. Whole-agent scenarios, global traces, and emergent-outcome probes become necessary, not optional.",
+      "generalization": "Any artifact comprised of interacting software agents must be instrumented and evaluated at the ensemble level before micro-optimizing parts.",
+      "evidence_quotes": [
+        "systemic properties only appear at the system level",
+        "Reductionism studies objects in isolation by taking them apart from the bottom up"
+      ],
+      "evidence_strength": "moderate",
+      "novelty": "medium"
+    },
+    {
+      "insight": "VSM distinguishes five structurally separate functions that must coexist for an organization to be viable: operations, coordination/stability, control/oversight, environmental intelligence, and policy/identity. A viable agent system likely needs the same architectural separation rather than fusing all roles into one orchestration loop.",
+      "type": "architecture",
+      "why_it_matters": "Autonomous agent deployments need to survive changes in task distributions and environment shifts. VSM gives a concrete checklist: is there a scanning loop for external change, an internal control loop, and a policy loop separate from day-to-day execution, and do these systems recurse at each level?",
+      "generalization": "Any self-management capability\u2014human or machine\u2014can be audited by asking which of the five viability functions exist and how they are connected.",
+      "evidence_quotes": [
+        "Successful systems must be able to adapt and survive over time.",
+        "Identified five necessary functions: System 5 (policy/identity), System 4 (intelligence/environment), System 3 (control/overview), System 2 (stability/coordination), and System 1 (sub-systems/operations)."
+      ],
+      "evidence_strength": "moderate",
+      "novelty": "high"
+    },
+    {
+      "insight": "Soft OR / problem structuring methods such as rich pictures and mapping are not about designing a solution to an assumed problem; they are a process for representing a messy situation, eliciting conflicting stakeholder views, and converging on joint commitments. The hard part is structuring the problem, not solving it.",
+      "type": "mechanism",
+      "why_it_matters": "For ill-defined goals, an agent that immediately optimizes against its first model of the user request will often solve the wrong problem. The process itself\u2014building a shared map, making assumptions explicit, testing commitments\u2014is a legitimate first-class agent workflow.",
+      "generalization": "Human-agent and multi-agent collaboration on unstructured objectives requires a negotiation and elicitation phase whose output is a structured issue and agreed constraint set, not merely a recommendation.",
+      "evidence_quotes": [
+        "PSMs offer a way of representing situations to enable participants to clarify predicaments, converge on actionable issues, and agree on commitments.",
+        "Focuses on experiential learning rather than system design."
+      ],
+      "evidence_strength": "moderate",
+      "novelty": "high"
+    },
+    {
+      "insight": "Deciding what is inside the system of concern versus the environment is a boundary judgement\u2014context-dependent, subjective, and often political\u2014not an objective fact discovered from data.",
+      "type": "mental_model",
+      "why_it_matters": "An agent's context, memory, tool access, and permitted scope function as boundary judgements. They determine what the agent can see, whose interests count, and what will be considered success. Leaving them implicit encodes one set of values into the system without stakeholder discussion.",
+      "generalization": "Boundary-setting interfaces and governance are as architecturally important as the agent's reasoning engine; them should be explicit, revisable, and auditable.",
+      "evidence_quotes": [
+        "How we draw the line between the system and the environment is a matter of judgement.",
+        "Boundary judgements distinguish the system of concern from its physical and social environment."
+      ],
+      "evidence_strength": "moderate",
+      "novelty": "high"
+    },
+    {
+      "insight": "A mature strand of applied systems practice explicitly chooses experiential learning over system design as its primary deliverable\u2014meaning analysts/facilitators are process consultants who improve the stakeholders' capability to think together, not technicians who produce an optimal artifact.",
+      "type": "practice",
+      "why_it_matters": "For AI-assisted decision making, this shifts the objective from 'generate the perfect plan' to 'enable the group to learn, disagree productively, and commit'. An agentic system optimized only for final answer quality can be counterproductive when the real gap is collective cognition.",
+      "generalization": "In multi-stakeholder or governance domains, the measured value of an interactive agent may lie more in process quality (clarifications, learning gains, commitment quality) than in solution artifact quality.",
+      "evidence_quotes": [
+        "Focuses on experiential learning rather than system design.",
+        "Provides flexible facilitation tools for tackling unstructured, messy, multi-stakeholder problems."
+      ],
+      "evidence_strength": "moderate",
+      "novelty": "medium"
+    }
+  ],
+  "architectural_implications": [
+    {
+      "observation": "Systemic properties only appear at the whole-system level, but agent systems are typically built and validated by improving individual modules such as prompts, retrieval, and tool calls.",
+      "before": "Evaluation gates compare isolated prompt/model outputs and then average component metrics into a score.",
+      "after": "Define end-to-end task scenes and evaluate learned, emergent, ecosystem-level outcomes\u2014collaboration quality, cascade failures, policy adherence\u2014before attributing performance to individual components.",
+      "consequence": "New evaluation harnesses, whole-session telemetry, and failure-mode taxonomies are required; component optimization alone becomes suspect."
+    },
+    {
+      "observation": "VSM separates operations, coordination, control, intelligence, and policy into distinct mutually connected functions rather than one monolithic controller.",
+      "before": "One large model prompt or agent loop is expected to execute work, coordinate subagents, scan the environment, ensure stability, and decide policy simultaneously.",
+      "after": "Introduce structurally different subsystems: operational workers, a coordination/stabilization layer, an internal audit/control layer, an external scanning/intelligence layer, and a policy/identity layer, each with its own loop and handoffs.",
+      "consequence": "Agent platforms become more complex, but gain an explicit mechanism for long-term adaptation and diagnosability of systemic failures."
+    },
+    {
+      "observation": "PSM workflows treat complex situations by representing them, eliciting conflicting views, and converging on issues before commitments\u2014rather than assuming a stationary, well-defined user goal.",
+      "before": "Planning starts with a natural-language request converted directly to a task list with no joint representation of stakeholders or conflicts.",
+      "after": "The agent's early loop explicitly builds a rich picture or causal map, checks it with stakeholders, reframes the problem boundary, and only then selects a solving strategy.",
+      "consequence": "Better outcomes for messy sociotechnical tasks, but interaction cost and latency rise; agent designers must choose when problem structuring is worth the overhead."
+    },
+    {
+      "observation": "Boundary judgements determine what is included in the system of concern, yet content selection, memory scoping, and user authorization are usually implementation choices rather than reviewed design decisions.",
+      "before": "A developer selects available tools and context window contents based on convenience, and these choices remain invisible and static.",
+      "after": "Context and tools are treated as explicitly recorded boundary judgements with rationale, ownership, and possible alternatives that can be reviewed by affected stakeholders.",
+      "consequence": "Changing the agent's scope becomes a deliberate act; wrong-scope and exclusion issues can be surfaced earlier, at the tradeoff of more governance overhead."
+    }
+  ],
+  "tradeoffs_and_failure_modes": [
+    {
+      "topic": "Whole-level evaluation vs. component optimization",
+      "benefit": "Whole-level evaluation captures properties that only exist when components interact.",
+      "cost_or_risk": "Whole-system measurements are harder to localize, slower, more expensive, and make incremental component progress harder to read.",
+      "evidence_quote": "systemic properties only appear at the system level"
+    },
+    {
+      "topic": "Problem structuring vs. direct problem solving",
+      "benefit": "Structuring methods handle unstructured, multi-stakeholder problems by creating truthful representations and shared commitments.",
+      "cost_or_risk": "PSM processes trade away crispness and solution-design outputs; because the focus is on experiential learning, the deliverable can feel less concrete and more time-consuming.",
+      "evidence_quote": "Focuses on experiential learning rather than system design."
+    },
+    {
+      "topic": "Boundary judgement scope",
+      "benefit": "Choosing a narrower boundary yields a tractable system of concern and makes analysis and control easier.",
+      "cost_or_risk": "A narrow boundary can silently exclude important stakeholders, externalities, and causal feedback, causing a technically valid solution to solve the socially wrong problem.",
+      "evidence_quote": "How we draw the line between the system and the environment is a matter of judgement."
+    },
+    {
+      "topic": "Separation of control functions in VSM",
+      "benefit": "Distinct functions give a system explicit mechanisms for stability, internal control, environmental scanning, and policy\u2014improving viability over time.",
+      "cost_or_risk": "The resulting architecture has many interlocking sub-systems; the overhead can be unjustified for small or stable agent systems and can create coordination lag between the layers.",
+      "evidence_quote": "Successful systems must be able to adapt and survive over time."
+    }
+  ],
+  "open_questions": [
+    {
+      "question": "What does an operationalized boundary-judgement process look like for an agentic system: who chooses the context/knowledge/tool boundary, how is it contested, and how often is it revisited?",
+      "why_unresolved": "The source only establishes that boundary lines are subjective judgements, not objective features, so there is no algorithmic mechanism supplied for making the choice.",
+      "research_direction": "Design explicit boundary-setting interfaces, log boundary decisions as metadata, and experimentally compare fixed vs. revisable context scopes."
+    },
+    {
+      "question": "Can VSM be used as a diagnostic audit for existing agentic architectures, and does the absence of any of the five functions correlate with observed failure modes in production?",
+      "why_unresolved": "VSM evidence in the source comes from modeling organizations and public-sector services, not from generative-agent deployments.",
+      "research_direction": "Map deployed agent systems onto VSM, identify missing functions, and prospectively test whether adding, say, an explicit environment-scanning loop improves long-horizon task reliability."
+    },
+    {
+      "question": "Which metrics capture systemic properties of agent systems so they can be tracked across changes?",
+      "why_unresolved": "The source contrasts component-level reductionism with whole-level systemic properties but does not define operational system-level metrics.",
+      "research_direction": "Create canonical multi-agent scenario benchmarks with whole-system outcomes (e.g., robustness to perturbation, coordination efficiency, intent preservation) and study their sensitivity to individual component changes."
+    },
+    {
+      "question": "Which PSMs can be translated into agent workflows, and what is the human-AI division of labor when running them?",
+      "why_unresolved": "The summary describes rich pictures and workshops as social facilitation techniques but says nothing about automating them through AI agents.",
+      "research_direction": "Prototype an agent that elicits a rich picture from stakeholders and compares output quality and participant learning against traditional facilitated workshops."
+    }
+  ],
+  "key_claims": [
+    {
+      "claim": "Systems are assemblies of things interconnected in some way to create a whole.",
+      "claim_type": "factual",
+      "evidence": "Systems are assemblies of things interconnected in some way to create a whole.",
+      "verification_needed": false,
+      "verification_question": null
+    },
+    {
+      "claim": "Reductionism studies objects in isolation by taking them apart from the bottom up, while systems thinking studies the whole object because systemic properties only appear at the system level.",
+      "claim_type": "comparative",
+      "evidence": "Reductionism studies objects in isolation by taking them apart from the bottom up",
+      "verification_needed": false,
+      "verification_question": null
+    },
+    {
+      "claim": "Stafford Beer's VSM identifies five necessary functions covering operations, coordination, control, intelligence, and policy that must be present for an organization to be viable.",
+      "claim_type": "factual",
+      "evidence": "Identified five necessary functions: System 5 (policy/identity), System 4 (intelligence/environment), System 3 (control/overview), System 2 (stability/coordination), and System 1 (sub-systems/operations).",
+      "verification_needed": true,
+      "verification_question": "Does Beer's model indeed posit all five functions as necessary for viability across organizational forms?"
+    },
+    {
+      "claim": "PSMs are an effective approach for helping participants clarify predicaments, converge on actionable issues, and agree on commitments in unstructured situations.",
+      "claim_type": "causal",
+      "evidence": "PSMs offer a way of representing situations to enable participants to clarify predicaments, converge on actionable issues, and agree on commitments.",
+      "verification_needed": true,
+      "verification_question": "What empirical evidence from soft OR practice supports the claimed outcomes of PSMs?"
+    },
+    {
+      "claim": "The appropriate focus of soft operational research is experiential learning rather than system design.",
+      "claim_type": "comparative",
+      "evidence": "Focuses on experiential learning rather than system design.",
+      "verification_needed": true,
+      "verification_question": "Is this distinction between learning-focused and design-focused paradigms consistently maintained in the PSM literature?"
+    },
+    {
+      "claim": "Drawing the boundary between a system and its environment is a matter of judgement.",
+      "claim_type": "opinion",
+      "evidence": "How we draw the line between the system and the environment is a matter of judgement.",
+      "verification_needed": false,
+      "verification_question": null
+    },
+    {
+      "claim": "Successful systems must be able to adapt and survive over time.",
+      "claim_type": "opinion",
+      "evidence": "Successful systems must be able to adapt and survive over time.",
+      "verification_needed": false,
+      "verification_question": null
+    }
+  ],
+  "connections": [
+    {
+      "concept": "reductionism",
+      "connects_to": "agent evaluation strategy",
+      "relationship": "Reductionist component-level metrics are the norm in agent engineering, but systemic properties only appear at whole-system level, making whole-scenario evaluation the required complement."
+    },
+    {
+      "concept": "viable system model",
+      "connects_to": "agent architecture and governance",
+      "relationship": "VSM offers a ready-made blueprint of operations, coordination, audit, intelligence, and policy functions for durable autonomous agent systems."
+    },
+    {
+      "concept": "problem structuring methods",
+      "connects_to": "human-agent planning workflows",
+      "relationship": "PSM-style mapping, elicitation, and commitment-building can be embedded as a first phase of agentic reasoning on ambiguous tasks."
+    },
+    {
+      "concept": "boundary judgements",
+      "connects_to": "context and permission scoping",
+      "relationship": "Deciding what goes into an agent's context/knowledge/toolset is a boundary judgement that determines what system is actually being optimized."
+    },
+    {
+      "concept": "experiential learning",
+      "connects_to": "agent success metrics",
+      "relationship": "When stakeholder learning is the point, solution artifact quality is insufficient as an evaluation; process outcomes such as shared understanding and commitment need to be measured."
+    }
+  ],
+  "tags": [
+    "systems-thinking",
+    "emergent-behavior",
+    "viable-system-model",
+    "problem-structuring",
+    "boundary-judgements",
+    "multi-agent-architecture",
+    "evaluation-strategy",
+    "experiential-learning"
+  ]
+}

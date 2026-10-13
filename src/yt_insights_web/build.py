@@ -13,7 +13,7 @@ from typing import Any
 from .corpus import compiler
 from .corpus.normalized_models import NormalizedCorpus as CanonicalCorpus
 from .corpus.registries import OverlayValidationError
-from .derive import derive_claims, derive_ideas, derive_trends
+from .derive import derive_claims, derive_convergence, derive_ideas, derive_trends
 from .graph import build_concept_graph
 from .load import CorpusValidationError, load_corpus
 from .normalize import NormalizedCorpus, normalize_corpus
@@ -105,6 +105,7 @@ def _data_files(
     }
     if config.generated_at is not None:
         corpus_data["site"]["generated_at"] = config.generated_at
+    convergence = derive_convergence(consumer, concept_graph)
     files: dict[str, Any] = {
         "data/corpus.json": corpus_data,
         "data/trends.json": trends,
@@ -112,6 +113,11 @@ def _data_files(
         "data/ideas.json": ideas,
         "data/claims.json": claims,
     }
+    if convergence["groups"]:
+        # Present only when the corpus has at least one concept that two or
+        # more videos carry.  A corpus without cross-video support keeps the
+        # frozen V1 golden tree byte-identical.
+        files["data/convergence.json"] = convergence
     for video in corpus.videos:
         files[f"data/videos/{video['video_id']}.json"] = video
     return files

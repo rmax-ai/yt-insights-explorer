@@ -181,6 +181,20 @@ endpoint IDs. Self-links are retained in detail data but omitted from SVG
 edges. The visual overview is capped at the top 60 nodes; accessible lists
 retain everything.
 
+### `data/convergence.json`
+
+Canonical builds only. Ranks concept variants by the number of distinct videos
+that carry them. A group joins names that are equal after casefolding and after
+removal of every character that is not a letter or a digit, so a tag spelling
+and a connection spelling of one concept land in one group. Groups carry
+`key`, `id`, `label`, `url`, `support`, `insight_total`, `high_novelty`,
+`gold`, `top_tags`, `members`, and `video_ids`. `gold` counts insights marked
+`novelty: high` and `evidence_strength: strong`. `members` lists each retained
+spelling with its own support, tag count, and connection count. The envelope
+carries `rule`, `min_support`, `display_support`, and `totals`. The group
+identity is an aggregate aid: concept pages keep equality-only identity.
+Groups with fewer than `min_support` videos are absent.
+
 ### `data/ideas.json`
 
 Contains `article_ideas`, `project_ideas`, `deep_dives`, and

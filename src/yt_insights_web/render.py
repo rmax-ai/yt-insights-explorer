@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC
 from html import escape
@@ -18,7 +19,13 @@ from .corpus.normalized_models import (
 )
 from .corpus.normalized_models import NormalizedCorpus as CanonicalCorpus
 from .corpus.registries import Registries
-from .derive import derive_claims, derive_ideas, derive_trends, month_axis
+from .derive import (
+    derive_claims,
+    derive_convergence,
+    derive_ideas,
+    derive_trends,
+    month_axis,
+)
 from .frontmatter import render_markdown
 from .graph import build_concept_graph
 from .models import CLAIM_TYPES, INSIGHT_TYPES, PROJECT_FITS
@@ -57,6 +64,11 @@ NAV_ITEMS = (
 )
 
 COSTS_NAV_ITEM = NavItem("costs", "Costs", "costs/index.html", "$")
+
+# The convergence link exists only when the corpus has at least one concept
+# that two or more videos carry, so a corpus without cross-video support keeps
+# the frozen V1 golden tree byte-identical.
+CONVERGENCE_NAV_ITEM = NavItem("convergence", "Convergence", "convergence/index.html", "#")
 
 GLYPHS = {
     "architecture": "[A]",
@@ -800,6 +812,36 @@ def _costs_page(
     )
 
 
+def _convergence_view(
+    corpus: Any,
+    graph: Mapping[str, Any],
+    concept_urls: Mapping[str, str],
+) -> dict[str, Any] | None:
+    """Resolve convergence group links against the rendered concept pages.
+
+    Returns ``None`` when the corpus has no concept that two or more videos
+    carry, so the surface exists only when it has content.
+    """
+
+    convergence = derive_convergence(corpus, graph)
+    if not convergence["groups"]:
+        return None
+    return {
+        **convergence,
+        "groups": [
+            {
+                **group,
+                "url": concept_urls.get(group["id"], group["url"]),
+                "members": [
+                    {**member, "url": concept_urls.get(member["id"], member["url"])}
+                    for member in group["members"]
+                ],
+            }
+            for group in convergence["groups"]
+        ],
+    }
+
+
 def render_site(
     corpus: NormalizedCorpus | CanonicalCorpus,
     config: RenderConfig | None = None,
@@ -862,6 +904,7 @@ def render_site(
         concept_urls.update(
             {legacy_concept_id(concept["name"]): concept["url"] for concept in concept_views}
         )
+        convergence = _convergence_view(canonical_corpus, graph, concept_urls)
         trends = {
             **trends,
             "tag_rankings": [
@@ -889,6 +932,7 @@ def render_site(
         videos_by_id = {video["video_id"]: video for video in compatibility_corpus.videos}
         concept_views = compatibility_corpus.concepts
         concept_urls = {concept["id"]: concept["url"] for concept in compatibility_corpus.concepts}
+        convergence = _convergence_view(compatibility_corpus.videos, graph, concept_urls)
         search_records = build_search_records(
             compatibility_corpus.videos,
             compatibility_corpus.concepts,
@@ -912,7 +956,12 @@ def render_site(
             return page_url(target, base_path)
         return relative_url(current_page, target)
 
-    nav_items = NAV_ITEMS + (COSTS_NAV_ITEM,) if config.costs_report is not None else NAV_ITEMS
+    nav_base = (
+        NAV_ITEMS[:3] + (CONVERGENCE_NAV_ITEM,) + NAV_ITEMS[3:]
+        if convergence is not None
+        else NAV_ITEMS
+    )
+    nav_items = nav_base + (COSTS_NAV_ITEM,) if config.costs_report is not None else nav_base
 
     def render_page(
         template_name: str, page_path: str, page_title: str, section: str, **values: Any
@@ -1039,6 +1088,21 @@ def render_site(
         search_kinds=tuple(KIND_ORDER),
     )
     render_page("404.html", "404.html", "Not found", "")
+    if convergence is not None:
+        display_support = convergence["display_support"]
+        render_page(
+            "convergence.html",
+            "convergence/index.html",
+            "Convergence",
+            "convergence",
+            convergence=convergence,
+            display_groups=[
+                group for group in convergence["groups"] if group["support"] >= display_support
+            ],
+            remaining_groups=[
+                group for group in convergence["groups"] if group["support"] < display_support
+            ],
+        )
     if config.costs_report is not None:
         output["costs/index.html"] = _costs_page(
             config.costs_report,
