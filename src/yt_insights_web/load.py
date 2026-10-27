@@ -492,7 +492,7 @@ def _validate_frontmatter(
 
 
 def _parse_index(
-    source: Path, errors: list[object]
+    source: Path, errors: list[object], warnings: list[str]
 ) -> tuple[
     list[IndexItem],
     dict[str, tuple[Path, str, Path, str, Path | None, str | None]],
@@ -515,12 +515,21 @@ def _parse_index(
         mapping = _mapping(raw, location, errors)
         if mapping is None:
             continue
+        skipped = mapping.get("status") == "skipped"
         video_id = _string(
             _required(mapping, "video_id", location, errors), f"{location}.video_id", errors
         )
-        title = _string(_required(mapping, "title", location, errors), f"{location}.title", errors)
+        title = _string(
+            _required(mapping, "title", location, errors),
+            f"{location}.title",
+            errors,
+            allow_empty=skipped,
+        )
         channel = _string(
-            _required(mapping, "channel", location, errors), f"{location}.channel", errors
+            _required(mapping, "channel", location, errors),
+            f"{location}.channel",
+            errors,
+            allow_empty=skipped,
         )
         status = _enum(
             _required(mapping, "status", location, errors),
@@ -528,6 +537,19 @@ def _parse_index(
             f"{location}.status",
             errors,
         )
+        if status == "skipped":
+            if title is not None and not title.strip():
+                warnings.append(
+                    f"{location}.title is empty for skipped video {video_id}; "
+                    "using '(unavailable)'"
+                )
+                title = "(unavailable)"
+            if channel is not None and not channel.strip():
+                warnings.append(
+                    f"{location}.channel is empty for skipped video {video_id}; "
+                    "using 'unknown channel'"
+                )
+                channel = "unknown channel"
         ingested_at = _datetime(
             _required(mapping, "ingested_at", location, errors), f"{location}.ingested_at", errors
         )
@@ -583,7 +605,7 @@ def load_corpus(source: str | Path) -> LoadedCorpus:
     source_root = Path(source).expanduser().resolve()
     errors: list[object] = []
     warnings: list[str] = []
-    index_items, artifact_paths = _parse_index(source_root, errors)
+    index_items, artifact_paths = _parse_index(source_root, errors, warnings)
     videos: list[RawVideo] = []
     evidence_ids: dict[str, tuple[str, str]] = {}
 

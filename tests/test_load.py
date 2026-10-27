@@ -144,6 +144,52 @@ def test_skipped_and_failed_records_are_not_loaded(tmp_path: Path) -> None:
     }
 
 
+def test_skipped_records_with_empty_title_and_channel_are_warned(tmp_path: Path) -> None:
+    source = copy_fixture(tmp_path)
+    index = json.loads((source / "index.json").read_text(encoding="utf-8"))
+    index["items"].append(
+        {
+            "video_id": "skipped-empty",
+            "title": "",
+            "channel": "",
+            "status": "skipped",
+            "ingested_at": "2026-01-01T00:00:00Z",
+            "artifacts": {"summary": None, "insights": None},
+            "cost_usd_total": None,
+        }
+    )
+    (source / "index.json").write_text(json.dumps(index), encoding="utf-8")
+
+    corpus = load_corpus(source)
+    skipped = next(item for item in corpus.index_items if item.video_id == "skipped-empty")
+
+    assert skipped.title == "(unavailable)"
+    assert skipped.channel == "unknown channel"
+    assert any("title is empty for skipped video skipped-empty" in w for w in corpus.warnings)
+    assert any("channel is empty for skipped video skipped-empty" in w for w in corpus.warnings)
+
+
+@pytest.mark.parametrize("status", ("analyzed", "failed"))
+@pytest.mark.parametrize("field", ("title", "channel"))
+def test_non_skipped_records_require_nonempty_title_and_channel(
+    tmp_path: Path, status: str, field: str
+) -> None:
+    source = copy_fixture(tmp_path)
+    index_path = source / "index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    index["items"][0]["status"] = status
+    index["items"][0][field] = ""
+    index_path.write_text(json.dumps(index), encoding="utf-8")
+
+    with pytest.raises(CorpusValidationError) as exc_info:
+        load_corpus(source)
+
+    assert (
+        f"{index_path}::items[0].{field}: must be a non-empty string"
+        in exc_info.value.errors
+    )
+
+
 def test_explicit_schema_version_one_uses_the_public_v1_load_path(tmp_path: Path) -> None:
     source = copy_fixture(tmp_path)
     index = json.loads((source / "index.json").read_text(encoding="utf-8"))
